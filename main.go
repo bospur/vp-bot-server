@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	"go-server/internal/bot"
 	"go-server/internal/db"
 	"go-server/internal/handler"
 	"go-server/internal/repository"
@@ -14,6 +15,11 @@ func main() {
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
 		log.Fatal("DATABASE_URL не задан")
+	}
+
+	botToken := os.Getenv("TELEGRAM_BOT_TOKEN")
+	if botToken == "" {
+		log.Fatal("TELEGRAM_BOT_TOKEN не задан")
 	}
 
 	database, err := db.Connect(databaseURL)
@@ -27,11 +33,12 @@ func main() {
 		log.Fatalf("ошибка миграций: %v", err)
 	}
 
-	// Инициализируем репозитории и хендлеры
+	// Инициализируем репозитории
 	animalRepo := repository.NewAnimalRepository(database)
-	animalHandler := handler.NewAnimalHandler(animalRepo)
-
 	articleRepo := repository.NewArticleRepository(database)
+
+	// HTTP хендлеры
+	animalHandler := handler.NewAnimalHandler(animalRepo)
 	articleHandler := handler.NewArticleHandler(articleRepo)
 
 	// Роуты
@@ -39,6 +46,14 @@ func main() {
 	http.HandleFunc("/api/animals/{slug}/categories", animalHandler.GetCategories)
 	http.HandleFunc("/api/animals/{animalSlug}/categories/{categorySlug}/articles", articleHandler.GetArticles)
 	http.HandleFunc("/api/articles/{slug}", articleHandler.GetArticle)
+
+	// Telegram бот запускается в отдельной горутине
+	// (горутина — это лёгкий поток в Go, позволяет делать несколько вещей одновременно)
+	tgBot, err := bot.New(botToken, animalRepo, articleRepo)
+	if err != nil {
+		log.Fatalf("ошибка инициализации бота: %v", err)
+	}
+	go tgBot.Start()
 
 	log.Println("server started :8080")
 

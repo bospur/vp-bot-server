@@ -6,3 +6,5 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/lib/pq v1.11.2
 )
+
+require gopkg.in/telebot.v3 v3.3.8 // indirect
