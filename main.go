@@ -36,12 +36,9 @@ func main() {
 
 	// Роуты
 	http.HandleFunc("/api/animals", animalHandler.GetAnimals)
-	http.HandleFunc("/api/animals/", animalHandler.GetCategories)
-	http.HandleFunc("/api/articles/", articleHandler.GetArticle)
-
-	// Роут для статей категории — более специфичный паттерн
-	// /api/animals/{slug}/categories/{categorySlug}/articles
-	http.HandleFunc("/api/animals/{animalSlug}/categories/", articleHandler.GetArticles)
+	http.HandleFunc("/api/animals/{slug}/categories", animalHandler.GetCategories)
+	http.HandleFunc("/api/animals/{animalSlug}/categories/{categorySlug}/articles", articleHandler.GetArticles)
+	http.HandleFunc("/api/articles/{slug}", articleHandler.GetArticle)
 
 	log.Println("server started :8080")
 

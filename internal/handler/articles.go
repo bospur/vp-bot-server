@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strings"
 
 	"go-server/internal/repository"
 )
@@ -19,15 +18,12 @@ func NewArticleHandler(repo *repository.ArticleRepository) *ArticleHandler {
 
 // GetArticles обрабатывает GET /api/animals/{animalSlug}/categories/{categorySlug}/articles
 func (h *ArticleHandler) GetArticles(w http.ResponseWriter, r *http.Request) {
-	// URL: /api/animals/cat/categories/poisoning/articles
-	// parts: ["api", "animals", "cat", "categories", "poisoning", "articles"]
-	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-	if len(parts) < 6 {
+	animalSlug := r.PathValue("animalSlug")
+	categorySlug := r.PathValue("categorySlug")
+	if animalSlug == "" || categorySlug == "" {
 		http.Error(w, "неверный запрос", http.StatusBadRequest)
 		return
 	}
-	animalSlug := parts[2]
-	categorySlug := parts[4]
 
 	articles, err := h.repo.GetByCategory(animalSlug, categorySlug)
 	if err != nil {
@@ -44,14 +40,11 @@ func (h *ArticleHandler) GetArticles(w http.ResponseWriter, r *http.Request) {
 
 // GetArticle обрабатывает GET /api/articles/{slug}
 func (h *ArticleHandler) GetArticle(w http.ResponseWriter, r *http.Request) {
-	// URL: /api/articles/cat-poisoning-first-aid
-	// parts: ["api", "articles", "cat-poisoning-first-aid"]
-	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-	if len(parts) < 3 {
+	slug := r.PathValue("slug")
+	if slug == "" {
 		http.Error(w, "неверный запрос", http.StatusBadRequest)
 		return
 	}
-	slug := parts[2]
 
 	article, err := h.repo.GetBySlug(slug)
 	if err != nil {

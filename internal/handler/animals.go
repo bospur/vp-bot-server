@@ -3,7 +3,6 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 
 	"go-server/internal/repository"
 )
@@ -38,14 +37,11 @@ func (h *AnimalHandler) GetAnimals(w http.ResponseWriter, r *http.Request) {
 // GetCategories обрабатывает GET /api/animals/{slug}/categories
 // Возвращает категории для конкретного животного
 func (h *AnimalHandler) GetCategories(w http.ResponseWriter, r *http.Request) {
-	// Извлекаем slug из URL вручную
-	// URL вида: /api/animals/cat/categories
-	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-	if len(parts) < 3 {
+	slug := r.PathValue("slug")
+	if slug == "" {
 		http.Error(w, "неверный запрос", http.StatusBadRequest)
 		return
 	}
-	slug := parts[2] // ["api", "animals", "cat", "categories"]
 
 	categories, err := h.repo.GetCategoriesByAnimalSlug(slug)
 	if err != nil {
