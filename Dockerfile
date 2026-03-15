@@ -21,6 +21,8 @@ WORKDIR /app
 
 # Копируем собранный бинарник из stage 1
 COPY --from=builder /app/server .
+# Копируем папку с миграциями — они нужны при запуске сервера
+COPY --from=builder /app/migrations ./migrations
 
 EXPOSE 8080
 
