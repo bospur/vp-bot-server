@@ -3,6 +3,7 @@ package bot
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"go-server/internal/repository"
@@ -12,8 +13,8 @@ import (
 
 // Bot — обёртка над telebot с нашими зависимостями
 type Bot struct {
-	tele       *tele.Bot
-	animalRepo *repository.AnimalRepository
+	tele        *tele.Bot
+	animalRepo  *repository.AnimalRepository
 	articleRepo *repository.ArticleRepository
 }
 
@@ -27,6 +28,16 @@ func New(token string, animalRepo *repository.AnimalRepository, articleRepo *rep
 	b, err := tele.NewBot(pref)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка создания бота: %w", err)
+	}
+
+	// A. Регистрируем команды в меню "/" Telegram
+	err = b.SetCommands([]tele.Command{
+		{Text: "start", Description: "Начать / Главное меню"},
+		{Text: "menu", Description: "Выбрать животное"},
+		{Text: "help", Description: "Помощь"},
+	})
+	if err != nil {
+		log.Printf("не удалось установить команды бота: %v", err)
 	}
 
 	bot := &Bot{
@@ -46,17 +57,42 @@ func (b *Bot) Start() {
 	b.tele.Start()
 }
 
-// registerHandlers регистрирует все обработчики команд и кнопок
-func (b *Bot) registerHandlers() {
-	// /start — приветствие и список животных
-	b.tele.Handle("/start", b.handleStart)
+// mainMenuKeyboard — B. Постоянная Reply-клавиатура под полем ввода
+// Показывается всегда, как обычные кнопки телефона
+func mainMenuKeyboard() *tele.ReplyMarkup {
+	menu := &tele.ReplyMarkup{ResizeKeyboard: true}
+	menu.Reply(
+		menu.Row(menu.Text("🐾 Выбрать животное")),
+		menu.Row(menu.Text("ℹ️ Помощь")),
+	)
+	return menu
+}
 
-	// Кнопка выбора животного — показывает категории
+// registerHandlers регистрирует все обработчики
+func (b *Bot) registerHandlers() {
+	b.tele.Handle("/start", b.handleStart)
+	b.tele.Handle("/menu", b.handleMenu)
+	b.tele.Handle("/help", b.handleHelp)
+
+	// Обработчик Reply-кнопок (текстовые кнопки под полем ввода)
+	b.tele.Handle("🐾 Выбрать животное", b.handleMenu)
+	b.tele.Handle("ℹ️ Помощь", b.handleHelp)
+
+	// Обработчик Inline-кнопок (кнопки прямо в сообщении)
 	b.tele.Handle(tele.OnCallback, b.handleCallback)
 }
 
-// handleStart обрабатывает команду /start
+// handleStart обрабатывает /start
 func (b *Bot) handleStart(c tele.Context) error {
+	text := "🏥 *Ветеринарная первая помощь*\n\n" +
+		"Здесь вы можете получить информацию о первой помощи вашему питомцу в нерабочие часы клиники.\n\n" +
+		"Используйте кнопки ниже для навигации."
+
+	return c.Send(text, mainMenuKeyboard(), tele.ModeMarkdown)
+}
+
+// handleMenu показывает список животных
+func (b *Bot) handleMenu(c tele.Context) error {
 	animals, err := b.animalRepo.GetAll()
 	if err != nil {
 		log.Printf("ошибка получения животных: %v", err)
@@ -67,7 +103,76 @@ func (b *Bot) handleStart(c tele.Context) error {
 		return c.Send("Информация пока недоступна. Попробуйте позже.")
 	}
 
-	// Строим клавиатуру из списка животных
+	var rows []tele.Row
+	for _, animal := range animals {
+		icon := animal.Icon
+		if icon == "" {
+			icon = "🐾"
+		}
+		btn := tele.Btn{
+			Text: fmt.Sprintf("%s %s", icon, animal.Name),
+			Data: fmt.Sprintf("animal:%s", animal.Slug),
+		}
+		rows = append(rows, tele.Row{btn})
+	}
+
+	inlineMenu := &tele.ReplyMarkup{}
+	inlineMenu.Inline(rows...)
+
+	return c.Send("Выберите вид животного:", inlineMenu)
+}
+
+// handleHelp обрабатывает /help
+func (b *Bot) handleHelp(c tele.Context) error {
+	text := "ℹ️ *Как пользоваться ботом*\n\n" +
+		"1. Нажмите *🐾 Выбрать животное*\n" +
+		"2. Выберите вид животного\n" +
+		"3. Выберите ситуацию\n" +
+		"4. Прочитайте инструкцию по первой помощи\n\n" +
+		"⚠️ Бот не заменяет визит к ветеринару. При серьёзных симптомах обратитесь в клинику."
+
+	return c.Send(text, mainMenuKeyboard(), tele.ModeMarkdown)
+}
+
+// handleCallback обрабатывает нажатия Inline-кнопок
+func (b *Bot) handleCallback(c tele.Context) error {
+	data := c.Callback().Data
+
+	// Парсим "тип:значение"
+	idx := strings.Index(data, ":")
+	if idx == -1 {
+		return c.Respond()
+	}
+	cbType := data[:idx]
+	cbValue := data[idx+1:]
+
+	switch cbType {
+	case "animal":
+		return b.showCategories(c, cbValue)
+	case "category":
+		// Формат cbValue: "animalSlug|categorySlug"
+		parts := strings.SplitN(cbValue, "|", 2)
+		if len(parts) != 2 {
+			return c.Respond()
+		}
+		return b.showArticles(c, parts[0], parts[1])
+	case "article":
+		return b.showArticle(c, cbValue)
+	case "back":
+		// C. Кнопка "Назад" — возвращает к списку животных
+		return b.showAnimalsInline(c)
+	}
+
+	return c.Respond()
+}
+
+// showAnimalsInline редактирует текущее сообщение показывая список животных
+func (b *Bot) showAnimalsInline(c tele.Context) error {
+	animals, err := b.animalRepo.GetAll()
+	if err != nil {
+		return c.Edit("Произошла ошибка. Попробуйте позже.")
+	}
+
 	var rows []tele.Row
 	for _, animal := range animals {
 		icon := animal.Icon
@@ -84,53 +189,15 @@ func (b *Bot) handleStart(c tele.Context) error {
 	menu := &tele.ReplyMarkup{}
 	menu.Inline(rows...)
 
-	return c.Send("🏥 *Ветеринарная помощь*\n\nВыберите вид животного:", menu, tele.ModeMarkdown)
+	return c.Edit("Выберите вид животного:", menu)
 }
 
-// handleCallback обрабатывает нажатия на кнопки
-func (b *Bot) handleCallback(c tele.Context) error {
-	data := c.Callback().Data
-
-	// Парсим данные кнопки: "тип:значение"
-	var cbType, cbValue string
-	fmt.Sscanf(data, "%s", &data)
-
-	// Разбираем вручную через разделитель ":"
-	for i, ch := range data {
-		if ch == ':' {
-			cbType = data[:i]
-			cbValue = data[i+1:]
-			break
-		}
-	}
-
-	switch cbType {
-	case "animal":
-		return b.showCategories(c, cbValue)
-	case "category":
-		// Формат: "animalSlug|categorySlug"
-		var animalSlug, categorySlug string
-		for i, ch := range cbValue {
-			if ch == '|' {
-				animalSlug = cbValue[:i]
-				categorySlug = cbValue[i+1:]
-				break
-			}
-		}
-		return b.showArticles(c, animalSlug, categorySlug)
-	case "article":
-		return b.showArticle(c, cbValue)
-	}
-
-	return c.Respond()
-}
-
-// showCategories показывает категории для выбранного животного
+// showCategories показывает категории животного
 func (b *Bot) showCategories(c tele.Context, animalSlug string) error {
 	categories, err := b.animalRepo.GetCategoriesByAnimalSlug(animalSlug)
 	if err != nil {
 		log.Printf("ошибка получения категорий: %v", err)
-		return c.Send("Произошла ошибка. Попробуйте позже.")
+		return c.Edit("Произошла ошибка. Попробуйте позже.")
 	}
 
 	if len(categories) == 0 {
@@ -150,7 +217,6 @@ func (b *Bot) showCategories(c tele.Context, animalSlug string) error {
 		rows = append(rows, tele.Row{btn})
 	}
 
-	// Кнопка "Назад"
 	backBtn := tele.Btn{Text: "⬅️ Назад", Data: "back:start"}
 	rows = append(rows, tele.Row{backBtn})
 
@@ -165,7 +231,7 @@ func (b *Bot) showArticles(c tele.Context, animalSlug, categorySlug string) erro
 	articles, err := b.articleRepo.GetByCategory(animalSlug, categorySlug)
 	if err != nil {
 		log.Printf("ошибка получения статей: %v", err)
-		return c.Send("Произошла ошибка. Попробуйте позже.")
+		return c.Edit("Произошла ошибка. Попробуйте позже.")
 	}
 
 	if len(articles) == 0 {
@@ -195,7 +261,7 @@ func (b *Bot) showArticle(c tele.Context, slug string) error {
 	article, err := b.articleRepo.GetBySlug(slug)
 	if err != nil || article == nil {
 		log.Printf("ошибка получения статьи %s: %v", slug, err)
-		return c.Send("Статья не найдена.")
+		return c.Edit("Статья не найдена.")
 	}
 
 	text := fmt.Sprintf("*%s*\n\n%s", article.Title, article.Content)
