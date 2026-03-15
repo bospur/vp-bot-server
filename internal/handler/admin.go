@@ -10,7 +10,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-
 // AdminHandler содержит зависимости для административных эндпоинтов
 type AdminHandler struct {
 	animalRepo  *repository.AnimalRepository
