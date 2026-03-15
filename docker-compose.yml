@@ -5,8 +5,10 @@ services:
     build: .
     restart: unless-stopped
     env_file: .env                  # переменные окружения из файла .env
+    ports:
+      - "127.0.0.1:8080:8080"      # доступен только локально (системный nginx проксирует)
     depends_on:
-      - db                          # запускается только после старта db
+      - db
     networks:
       - internal
 
@@ -17,21 +19,6 @@ services:
     env_file: .env
     volumes:
       - postgres_data:/var/lib/postgresql/data   # данные сохраняются между перезапусками
-    networks:
-      - internal
-
-  # ── Nginx ────────────────────────────────────────────────────────────────────
-  nginx:
-    image: nginx:alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"                     # HTTP
-      - "443:443"                   # HTTPS
-    volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro     # SSL сертификаты от Certbot
-    depends_on:
-      - app
     networks:
       - internal
 
