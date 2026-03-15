@@ -1,0 +1,44 @@
+services:
+
+  # ── Go приложение ────────────────────────────────────────────────────────────
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env                  # переменные окружения из файла .env
+    depends_on:
+      - db                          # запускается только после старта db
+    networks:
+      - internal
+
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data   # данные сохраняются между перезапусками
+    networks:
+      - internal
+
+  # ── Nginx ────────────────────────────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"                     # HTTP
+      - "443:443"                   # HTTPS
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro     # SSL сертификаты от Certbot
+    depends_on:
+      - app
+    networks:
+      - internal
+
+# ── Общая сеть (изолирована от хоста) ───────────────────────────────────────
+networks:
+  internal:
+
+# ── Постоянное хранилище для БД ──────────────────────────────────────────────
+volumes:
+  postgres_data:

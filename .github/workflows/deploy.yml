@@ -1,0 +1,31 @@
+name: Deploy to VPS
+
+# Запускается при каждом пуше в ветку dev
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Подключаемся к VPS по SSH и деплоим
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}          # IP сервера
+          username: ${{ secrets.VPS_USER }}       # имя пользователя (deploy)
+          key: ${{ secrets.VPS_SSH_KEY }}         # приватный SSH ключ
+          script: |
+            cd /home/deploy/vp-bot-server
+
+            # Получаем последние изменения из ветки dev
+            git pull origin dev
+
+            # Пересобираем и перезапускаем контейнеры
+            # --build   — пересобирает образ если изменился код
+            # -d        — запускает в фоне (detached mode)
+            # --no-deps — не пересоздаёт db (данные сохраняются)
+            docker compose up --build -d
