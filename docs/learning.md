@@ -72,3 +72,17 @@
 | Материал | Ссылка | Описание |
 |----------|--------|----------|
 | golang-migrate | https://github.com/golang-migrate/migrate | Миграции БД — используем в проекте |
+
+## Тестирование в Go
+
+| Материал | Ссылка | Описание |
+|----------|--------|----------|
+| Testing package | https://pkg.go.dev/testing | Стандартная библиотека тестирования Go |
+| httptest package | https://pkg.go.dev/net/http/httptest | Тестирование HTTP хендлеров — используем в проекте |
+| Table-driven tests | https://go.dev/wiki/TableDrivenTests | Идиоматичный подход к тестам в Go |
+
+## Безопасность паролей
+
+| Материал | Ссылка | Описание |
+|----------|--------|----------|
+| bcrypt | https://pkg.go.dev/golang.org/x/crypto/bcrypt | Хеширование паролей — используем в проекте |

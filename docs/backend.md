@@ -3,19 +3,22 @@
 ## Архитектура
 
 ```
-main.go                  — точка входа, инициализация, роуты
+main.go                  — точка входа, инициализация, роуты, seed пользователя
 internal/
 ├── db/
 │   └── db.go            — подключение к БД, запуск миграций
 ├── repository/
-│   ├── animals.go       — SQL запросы: animals, categories
-│   └── articles.go      — SQL запросы: articles, article_categories
+│   ├── animals.go       — SQL запросы: animals, categories (CRUD)
+│   ├── articles.go      — SQL запросы: articles, article_categories (CRUD)
+│   └── users.go         — SQL запросы: users
 ├── handler/
 │   ├── animals.go       — HTTP хендлеры: GET animals, categories
 │   ├── articles.go      — HTTP хендлеры: GET articles
-│   └── admin.go         — HTTP хендлеры: авторизация, CRUD
+│   ├── admin.go         — HTTP хендлеры: авторизация, CRUD
+│   └── helpers.go       — общие утилиты (writeJSON)
 ├── middleware/
 │   └── auth.go          — JWT middleware
+│   └── auth_test.go     — unit тесты
 └── bot/
     └── bot.go           — Telegram бот
 migrations/
@@ -47,10 +50,10 @@ PostgreSQL
 
 | Метод | URL | Описание |
 |-------|-----|----------|
-| GET | `/api/animals` | Список животных |
-| GET | `/api/animals/{slug}/categories` | Категории животного |
-| GET | `/api/animals/{animalSlug}/categories/{categorySlug}/articles` | Статьи категории |
-| GET | `/api/articles/{slug}` | Одна статья |
+| GET | `/api/clinics/{clinicSlug}/animals` | Список животных клиники |
+| GET | `/api/clinics/{clinicSlug}/animals/{slug}/categories` | Категории животного |
+| GET | `/api/clinics/{clinicSlug}/animals/{animalSlug}/categories/{categorySlug}/articles` | Статьи категории |
+| GET | `/api/clinics/{clinicSlug}/articles/{slug}` | Одна статья |
 
 ## Admin API
 
@@ -60,6 +63,9 @@ PostgreSQL
 | POST | `/api/admin/animals` | JWT | Создать животное |
 | PUT | `/api/admin/animals/{id}` | JWT | Обновить животное |
 | DELETE | `/api/admin/animals/{id}` | JWT | Удалить животное |
+| POST | `/api/admin/categories` | JWT | Создать категорию |
+| PUT | `/api/admin/categories/{id}` | JWT | Обновить категорию |
+| DELETE | `/api/admin/categories/{id}` | JWT | Удалить категорию |
 | POST | `/api/admin/articles` | JWT | Создать статью |
 | PUT | `/api/admin/articles/{id}` | JWT | Обновить статью |
 | DELETE | `/api/admin/articles/{id}` | JWT | Удалить статью |
@@ -72,21 +78,31 @@ JWT токен передаётся в заголовке:
 ```
 Authorization: Bearer <token>
 ```
-Токен действует 24 часа.
+Токен действует 24 часа и содержит `user_id`, `clinic_id`, `role`.
+
+Пароли хранятся в БД в виде bcrypt хешей.
+
+## Первый пользователь
+
+При первом запуске если таблица `users` пуста — создаётся admin пользователь
+из переменных `ADMIN_LOGIN` и `ADMIN_PASSWORD`. После создания env переменные
+можно убрать — они больше не используются для авторизации.
 
 ## Мультитенантность
 
 Каждая сущность привязана к `clinic_id`.
 
-Публичный API: клиника определяется по slug в URL.
-Admin API: клиника определяется из JWT токена пользователя.
+- Публичный API: клиника определяется по `clinicSlug` в URL
+- Admin API: клиника из JWT токена (`clinic_id`)
+- Telegram бот: клиника из переменной окружения `CLINIC_SLUG`
 
 ## Переменные окружения
 
-| Переменная | Описание |
-|-----------|----------|
-| `DATABASE_URL` | Строка подключения к PostgreSQL |
-| `TELEGRAM_BOT_TOKEN` | Токен Telegram бота |
-| `ADMIN_LOGIN` | Логин администратора (временно, будет заменён на таблицу users) |
-| `ADMIN_PASSWORD` | Пароль администратора (временно) |
-| `JWT_SECRET` | Секрет для подписи JWT токенов |
+| Переменная | Обязательная | Описание |
+|-----------|-------------|----------|
+| `DATABASE_URL` | да | Строка подключения к PostgreSQL |
+| `TELEGRAM_BOT_TOKEN` | да | Токен Telegram бота |
+| `CLINIC_SLUG` | да | Slug клиники для Telegram бота |
+| `JWT_SECRET` | да | Секрет для подписи JWT токенов |
+| `ADMIN_LOGIN` | только при первом запуске | Логин первого admin пользователя |
+| `ADMIN_PASSWORD` | только при первом запуске | Пароль первого admin пользователя |

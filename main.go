@@ -10,6 +10,8 @@ import (
 	"go-server/internal/handler"
 	"go-server/internal/middleware"
 	"go-server/internal/repository"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 func main() {
@@ -25,12 +27,13 @@ func main() {
 	if clinicSlug == "" {
 		log.Fatal("CLINIC_SLUG не задан")
 	}
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		log.Fatal("JWT_SECRET не задан")
+	}
+	// Используются только для создания первого пользователя при первом запуске
 	adminLogin := os.Getenv("ADMIN_LOGIN")
 	adminPass := os.Getenv("ADMIN_PASSWORD")
-	jwtSecret := os.Getenv("JWT_SECRET")
-	if adminLogin == "" || adminPass == "" || jwtSecret == "" {
-		log.Fatal("ADMIN_LOGIN, ADMIN_PASSWORD, JWT_SECRET не заданы")
-	}
 
 	database, err := db.Connect(databaseURL)
 	if err != nil {
@@ -46,11 +49,30 @@ func main() {
 	// Репозитории
 	animalRepo := repository.NewAnimalRepository(database)
 	articleRepo := repository.NewArticleRepository(database)
+	userRepo := repository.NewUserRepository(database)
+
+	// Создаём первого admin пользователя если таблица users пустая
+	if adminLogin != "" && adminPass != "" {
+		count, err := userRepo.Count()
+		if err != nil {
+			log.Fatalf("ошибка проверки пользователей: %v", err)
+		}
+		if count == 0 {
+			hash, err := bcrypt.GenerateFromPassword([]byte(adminPass), bcrypt.DefaultCost)
+			if err != nil {
+				log.Fatalf("ошибка хеширования пароля: %v", err)
+			}
+			if _, err := userRepo.Create(1, adminLogin, string(hash), "admin"); err != nil {
+				log.Fatalf("ошибка создания admin пользователя: %v", err)
+			}
+			log.Printf("создан первый пользователь: %s", adminLogin)
+		}
+	}
 
 	// Хендлеры
 	animalHandler := handler.NewAnimalHandler(animalRepo)
 	articleHandler := handler.NewArticleHandler(articleRepo)
-	adminHandler := handler.NewAdminHandler(animalRepo, articleRepo, adminLogin, adminPass, jwtSecret)
+	adminHandler := handler.NewAdminHandler(animalRepo, articleRepo, userRepo, jwtSecret)
 
 	// ── Публичные роуты ──────────────────────────────────────────────────────
 	http.HandleFunc("/api/clinics/{clinicSlug}/animals", animalHandler.GetAnimals)
@@ -66,10 +88,17 @@ func main() {
 		return middleware.Auth(jwtSecret, h)
 	}
 
+	// Animals
 	http.HandleFunc("POST /api/admin/animals", auth(adminHandler.CreateAnimal))
 	http.HandleFunc("PUT /api/admin/animals/{id}", auth(adminHandler.UpdateAnimal))
 	http.HandleFunc("DELETE /api/admin/animals/{id}", auth(adminHandler.DeleteAnimal))
 
+	// Categories
+	http.HandleFunc("POST /api/admin/categories", auth(adminHandler.CreateCategory))
+	http.HandleFunc("PUT /api/admin/categories/{id}", auth(adminHandler.UpdateCategory))
+	http.HandleFunc("DELETE /api/admin/categories/{id}", auth(adminHandler.DeleteCategory))
+
+	// Articles
 	http.HandleFunc("POST /api/admin/articles", auth(adminHandler.CreateArticle))
 	http.HandleFunc("PUT /api/admin/articles/{id}", auth(adminHandler.UpdateArticle))
 	http.HandleFunc("DELETE /api/admin/articles/{id}", auth(adminHandler.DeleteArticle))

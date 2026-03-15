@@ -31,6 +31,15 @@ type AnimalInput struct {
 	SortOrder int    `json:"sort_order"`
 }
 
+// CategoryInput — данные для создания/обновления категории
+type CategoryInput struct {
+	AnimalID  int    `json:"animal_id"`
+	Name      string `json:"name"`
+	Slug      string `json:"slug"`
+	Icon      string `json:"icon"`
+	SortOrder int    `json:"sort_order"`
+}
+
 // AnimalRepository — отвечает за все запросы к таблицам animals и categories
 type AnimalRepository struct {
 	db *sql.DB
@@ -131,4 +140,43 @@ func (r *AnimalRepository) GetCategoriesByAnimalSlug(clinicSlug, animalSlug stri
 	}
 
 	return categories, nil
+}
+
+// CreateCategory создаёт новую категорию
+func (r *AnimalRepository) CreateCategory(clinicID int, input CategoryInput) (*Category, error) {
+	var c Category
+	err := r.db.QueryRow(`
+		INSERT INTO categories (clinic_id, animal_id, name, slug, icon, sort_order)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id, animal_id, name, slug, COALESCE(icon, ''), sort_order
+	`, clinicID, input.AnimalID, input.Name, input.Slug, input.Icon, input.SortOrder).
+		Scan(&c.ID, &c.AnimalID, &c.Name, &c.Slug, &c.Icon, &c.SortOrder)
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
+// UpdateCategory обновляет категорию по id
+func (r *AnimalRepository) UpdateCategory(id string, input CategoryInput) (*Category, error) {
+	var c Category
+	err := r.db.QueryRow(`
+		UPDATE categories SET name=$1, slug=$2, icon=$3, sort_order=$4, updated_at=NOW()
+		WHERE id=$5
+		RETURNING id, animal_id, name, slug, COALESCE(icon, ''), sort_order
+	`, input.Name, input.Slug, input.Icon, input.SortOrder, id).
+		Scan(&c.ID, &c.AnimalID, &c.Name, &c.Slug, &c.Icon, &c.SortOrder)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
+// DeleteCategory удаляет категорию по id
+func (r *AnimalRepository) DeleteCategory(id string) error {
+	_, err := r.db.Exec(`DELETE FROM categories WHERE id=$1`, id)
+	return err
 }
