@@ -23,6 +23,14 @@ type Category struct {
 	SortOrder int    `json:"sort_order"`
 }
 
+// AnimalInput — данные для создания/обновления животного
+type AnimalInput struct {
+	Name      string `json:"name"`
+	Slug      string `json:"slug"`
+	Icon      string `json:"icon"`
+	SortOrder int    `json:"sort_order"`
+}
+
 // AnimalRepository — отвечает за все запросы к таблицам animals и categories
 type AnimalRepository struct {
 	db *sql.DB
@@ -55,6 +63,45 @@ func (r *AnimalRepository) GetAll() ([]Animal, error) {
 	}
 
 	return animals, nil
+}
+
+// Create создаёт новое животное
+func (r *AnimalRepository) Create(input AnimalInput) (*Animal, error) {
+	var a Animal
+	err := r.db.QueryRow(`
+		INSERT INTO animals (name, slug, icon, sort_order)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, name, slug, COALESCE(icon, ''), sort_order
+	`, input.Name, input.Slug, input.Icon, input.SortOrder).
+		Scan(&a.ID, &a.Name, &a.Slug, &a.Icon, &a.SortOrder)
+	if err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
+// Update обновляет животное по id
+func (r *AnimalRepository) Update(id string, input AnimalInput) (*Animal, error) {
+	var a Animal
+	err := r.db.QueryRow(`
+		UPDATE animals SET name=$1, slug=$2, icon=$3, sort_order=$4, updated_at=NOW()
+		WHERE id=$5
+		RETURNING id, name, slug, COALESCE(icon, ''), sort_order
+	`, input.Name, input.Slug, input.Icon, input.SortOrder, id).
+		Scan(&a.ID, &a.Name, &a.Slug, &a.Icon, &a.SortOrder)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
+// Delete удаляет животное по id
+func (r *AnimalRepository) Delete(id string) error {
+	_, err := r.db.Exec(`DELETE FROM animals WHERE id=$1`, id)
+	return err
 }
 
 // GetCategoriesByAnimalSlug возвращает категории для конкретного животного

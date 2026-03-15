@@ -7,4 +7,7 @@ require (
 	github.com/lib/pq v1.11.2
 )
 
-require gopkg.in/telebot.v3 v3.3.8 // indirect
+require (
+	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
+	gopkg.in/telebot.v3 v3.3.8 // indirect
+)

@@ -12,6 +12,13 @@ type Article struct {
 	Slug    string `json:"slug"`
 }
 
+// ArticleInput — данные для создания/обновления статьи
+type ArticleInput struct {
+	Title   string `json:"title"`
+	Content string `json:"content"`
+	Slug    string `json:"slug"`
+}
+
 // ArticleRepository — отвечает за запросы к таблице articles
 type ArticleRepository struct {
 	db *sql.DB
@@ -20,6 +27,63 @@ type ArticleRepository struct {
 // NewArticleRepository создаёт новый репозиторий
 func NewArticleRepository(db *sql.DB) *ArticleRepository {
 	return &ArticleRepository{db: db}
+}
+
+// Create создаёт новую статью
+func (r *ArticleRepository) Create(input ArticleInput) (*Article, error) {
+	var a Article
+	err := r.db.QueryRow(`
+		INSERT INTO articles (title, content, slug)
+		VALUES ($1, $2, $3)
+		RETURNING id, title, content, slug
+	`, input.Title, input.Content, input.Slug).
+		Scan(&a.ID, &a.Title, &a.Content, &a.Slug)
+	if err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
+// Update обновляет статью по id
+func (r *ArticleRepository) Update(id string, input ArticleInput) (*Article, error) {
+	var a Article
+	err := r.db.QueryRow(`
+		UPDATE articles SET title=$1, content=$2, slug=$3, updated_at=NOW()
+		WHERE id=$4
+		RETURNING id, title, content, slug
+	`, input.Title, input.Content, input.Slug, id).
+		Scan(&a.ID, &a.Title, &a.Content, &a.Slug)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
+// Delete удаляет статью по id
+func (r *ArticleRepository) Delete(id string) error {
+	_, err := r.db.Exec(`DELETE FROM articles WHERE id=$1`, id)
+	return err
+}
+
+// AssignToCategory привязывает статью к категории
+func (r *ArticleRepository) AssignToCategory(articleID, categoryID string) error {
+	_, err := r.db.Exec(`
+		INSERT INTO article_categories (article_id, category_id)
+		VALUES ($1, $2)
+		ON CONFLICT DO NOTHING
+	`, articleID, categoryID)
+	return err
+}
+
+// RemoveFromCategory отвязывает статью от категории
+func (r *ArticleRepository) RemoveFromCategory(articleID, categoryID string) error {
+	_, err := r.db.Exec(`
+		DELETE FROM article_categories WHERE article_id=$1 AND category_id=$2
+	`, articleID, categoryID)
+	return err
 }
 
 // GetByCategory возвращает список статей для конкретной категории животного
