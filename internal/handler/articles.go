@@ -16,16 +16,17 @@ func NewArticleHandler(repo *repository.ArticleRepository) *ArticleHandler {
 	return &ArticleHandler{repo: repo}
 }
 
-// GetArticles обрабатывает GET /api/animals/{animalSlug}/categories/{categorySlug}/articles
+// GetArticles обрабатывает GET /api/clinics/{clinicSlug}/animals/{animalSlug}/categories/{categorySlug}/articles
 func (h *ArticleHandler) GetArticles(w http.ResponseWriter, r *http.Request) {
+	clinicSlug := r.PathValue("clinicSlug")
 	animalSlug := r.PathValue("animalSlug")
 	categorySlug := r.PathValue("categorySlug")
-	if animalSlug == "" || categorySlug == "" {
+	if clinicSlug == "" || animalSlug == "" || categorySlug == "" {
 		http.Error(w, "неверный запрос", http.StatusBadRequest)
 		return
 	}
 
-	articles, err := h.repo.GetByCategory(animalSlug, categorySlug)
+	articles, err := h.repo.GetByCategory(clinicSlug, animalSlug, categorySlug)
 	if err != nil {
 		http.Error(w, "внутренняя ошибка сервера", http.StatusInternalServerError)
 		return
@@ -38,15 +39,16 @@ func (h *ArticleHandler) GetArticles(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, articles)
 }
 
-// GetArticle обрабатывает GET /api/articles/{slug}
+// GetArticle обрабатывает GET /api/clinics/{clinicSlug}/articles/{slug}
 func (h *ArticleHandler) GetArticle(w http.ResponseWriter, r *http.Request) {
+	clinicSlug := r.PathValue("clinicSlug")
 	slug := r.PathValue("slug")
-	if slug == "" {
+	if clinicSlug == "" || slug == "" {
 		http.Error(w, "неверный запрос", http.StatusBadRequest)
 		return
 	}
 
-	article, err := h.repo.GetBySlug(slug)
+	article, err := h.repo.GetBySlug(clinicSlug, slug)
 	if err != nil {
 		http.Error(w, "внутренняя ошибка сервера", http.StatusInternalServerError)
 		return

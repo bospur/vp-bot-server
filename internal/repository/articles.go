@@ -30,13 +30,13 @@ func NewArticleRepository(db *sql.DB) *ArticleRepository {
 }
 
 // Create создаёт новую статью
-func (r *ArticleRepository) Create(input ArticleInput) (*Article, error) {
+func (r *ArticleRepository) Create(clinicID int, input ArticleInput) (*Article, error) {
 	var a Article
 	err := r.db.QueryRow(`
-		INSERT INTO articles (title, content, slug)
-		VALUES ($1, $2, $3)
+		INSERT INTO articles (clinic_id, title, content, slug)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id, title, content, slug
-	`, input.Title, input.Content, input.Slug).
+	`, clinicID, input.Title, input.Content, input.Slug).
 		Scan(&a.ID, &a.Title, &a.Content, &a.Slug)
 	if err != nil {
 		return nil, err
@@ -86,17 +86,18 @@ func (r *ArticleRepository) RemoveFromCategory(articleID, categoryID string) err
 	return err
 }
 
-// GetByCategory возвращает список статей для конкретной категории животного
-func (r *ArticleRepository) GetByCategory(animalSlug, categorySlug string) ([]Article, error) {
+// GetByCategory возвращает список статей для конкретной категории животного в рамках клиники
+func (r *ArticleRepository) GetByCategory(clinicSlug, animalSlug, categorySlug string) ([]Article, error) {
 	rows, err := r.db.Query(`
 		SELECT a.id, a.title, a.content, a.slug
 		FROM articles a
 		JOIN article_categories ac ON ac.article_id = a.id
 		JOIN categories c ON c.id = ac.category_id
 		JOIN animals an ON an.id = c.animal_id
-		WHERE an.slug = $1 AND c.slug = $2
+		JOIN clinics cl ON cl.id = an.clinic_id
+		WHERE cl.slug = $1 AND an.slug = $2 AND c.slug = $3
 		ORDER BY a.title
-	`, animalSlug, categorySlug)
+	`, clinicSlug, animalSlug, categorySlug)
 	if err != nil {
 		return nil, err
 	}
@@ -114,14 +115,15 @@ func (r *ArticleRepository) GetByCategory(animalSlug, categorySlug string) ([]Ar
 	return articles, nil
 }
 
-// GetBySlug возвращает одну статью по slug
-func (r *ArticleRepository) GetBySlug(slug string) (*Article, error) {
+// GetBySlug возвращает одну статью по slug в рамках клиники
+func (r *ArticleRepository) GetBySlug(clinicSlug, slug string) (*Article, error) {
 	var a Article
 	err := r.db.QueryRow(`
-		SELECT id, title, content, slug
-		FROM articles
-		WHERE slug = $1
-	`, slug).Scan(&a.ID, &a.Title, &a.Content, &a.Slug)
+		SELECT a.id, a.title, a.content, a.slug
+		FROM articles a
+		JOIN clinics c ON c.id = a.clinic_id
+		WHERE c.slug = $1 AND a.slug = $2
+	`, clinicSlug, slug).Scan(&a.ID, &a.Title, &a.Content, &a.Slug)
 
 	if err == sql.ErrNoRows {
 		return nil, nil // статья не найдена

@@ -14,12 +14,13 @@ import (
 // Bot — обёртка над telebot с нашими зависимостями
 type Bot struct {
 	tele        *tele.Bot
+	clinicSlug  string
 	animalRepo  *repository.AnimalRepository
 	articleRepo *repository.ArticleRepository
 }
 
 // New создаёт и настраивает Telegram бота
-func New(token string, animalRepo *repository.AnimalRepository, articleRepo *repository.ArticleRepository) (*Bot, error) {
+func New(token, clinicSlug string, animalRepo *repository.AnimalRepository, articleRepo *repository.ArticleRepository) (*Bot, error) {
 	pref := tele.Settings{
 		Token:  token,
 		Poller: &tele.LongPoller{Timeout: 10 * time.Second},
@@ -42,6 +43,7 @@ func New(token string, animalRepo *repository.AnimalRepository, articleRepo *rep
 
 	bot := &Bot{
 		tele:        b,
+		clinicSlug:  clinicSlug,
 		animalRepo:  animalRepo,
 		articleRepo: articleRepo,
 	}
@@ -93,7 +95,7 @@ func (b *Bot) handleStart(c tele.Context) error {
 
 // handleMenu показывает список животных
 func (b *Bot) handleMenu(c tele.Context) error {
-	animals, err := b.animalRepo.GetAll()
+	animals, err := b.animalRepo.GetAllByClinic(b.clinicSlug)
 	if err != nil {
 		log.Printf("ошибка получения животных: %v", err)
 		return c.Send("Произошла ошибка. Попробуйте позже.")
@@ -168,7 +170,7 @@ func (b *Bot) handleCallback(c tele.Context) error {
 
 // showAnimalsInline редактирует текущее сообщение показывая список животных
 func (b *Bot) showAnimalsInline(c tele.Context) error {
-	animals, err := b.animalRepo.GetAll()
+	animals, err := b.animalRepo.GetAllByClinic(b.clinicSlug)
 	if err != nil {
 		return c.Edit("Произошла ошибка. Попробуйте позже.")
 	}
@@ -194,7 +196,7 @@ func (b *Bot) showAnimalsInline(c tele.Context) error {
 
 // showCategories показывает категории животного
 func (b *Bot) showCategories(c tele.Context, animalSlug string) error {
-	categories, err := b.animalRepo.GetCategoriesByAnimalSlug(animalSlug)
+	categories, err := b.animalRepo.GetCategoriesByAnimalSlug(b.clinicSlug, animalSlug)
 	if err != nil {
 		log.Printf("ошибка получения категорий: %v", err)
 		return c.Edit("Произошла ошибка. Попробуйте позже.")
@@ -228,7 +230,7 @@ func (b *Bot) showCategories(c tele.Context, animalSlug string) error {
 
 // showArticles показывает список статей категории
 func (b *Bot) showArticles(c tele.Context, animalSlug, categorySlug string) error {
-	articles, err := b.articleRepo.GetByCategory(animalSlug, categorySlug)
+	articles, err := b.articleRepo.GetByCategory(b.clinicSlug, animalSlug, categorySlug)
 	if err != nil {
 		log.Printf("ошибка получения статей: %v", err)
 		return c.Edit("Произошла ошибка. Попробуйте позже.")
@@ -258,7 +260,7 @@ func (b *Bot) showArticles(c tele.Context, animalSlug, categorySlug string) erro
 
 // showArticle показывает содержимое статьи
 func (b *Bot) showArticle(c tele.Context, slug string) error {
-	article, err := b.articleRepo.GetBySlug(slug)
+	article, err := b.articleRepo.GetBySlug(b.clinicSlug, slug)
 	if err != nil || article == nil {
 		log.Printf("ошибка получения статьи %s: %v", slug, err)
 		return c.Edit("Статья не найдена.")

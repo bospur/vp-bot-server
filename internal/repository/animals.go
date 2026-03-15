@@ -41,13 +41,15 @@ func NewAnimalRepository(db *sql.DB) *AnimalRepository {
 	return &AnimalRepository{db: db}
 }
 
-// GetAll возвращает список всех животных отсортированных по sort_order
-func (r *AnimalRepository) GetAll() ([]Animal, error) {
+// GetAllByClinic возвращает животных конкретной клиники
+func (r *AnimalRepository) GetAllByClinic(clinicSlug string) ([]Animal, error) {
 	rows, err := r.db.Query(`
-		SELECT id, name, slug, COALESCE(icon, ''), sort_order
-		FROM animals
-		ORDER BY sort_order, name
-	`)
+		SELECT a.id, a.name, a.slug, COALESCE(a.icon, ''), a.sort_order
+		FROM animals a
+		JOIN clinics c ON c.id = a.clinic_id
+		WHERE c.slug = $1
+		ORDER BY a.sort_order, a.name
+	`, clinicSlug)
 	if err != nil {
 		return nil, err
 	}
@@ -66,13 +68,13 @@ func (r *AnimalRepository) GetAll() ([]Animal, error) {
 }
 
 // Create создаёт новое животное
-func (r *AnimalRepository) Create(input AnimalInput) (*Animal, error) {
+func (r *AnimalRepository) Create(clinicID int, input AnimalInput) (*Animal, error) {
 	var a Animal
 	err := r.db.QueryRow(`
-		INSERT INTO animals (name, slug, icon, sort_order)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO animals (clinic_id, name, slug, icon, sort_order)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, name, slug, COALESCE(icon, ''), sort_order
-	`, input.Name, input.Slug, input.Icon, input.SortOrder).
+	`, clinicID, input.Name, input.Slug, input.Icon, input.SortOrder).
 		Scan(&a.ID, &a.Name, &a.Slug, &a.Icon, &a.SortOrder)
 	if err != nil {
 		return nil, err
@@ -104,15 +106,16 @@ func (r *AnimalRepository) Delete(id string) error {
 	return err
 }
 
-// GetCategoriesByAnimalSlug возвращает категории для конкретного животного
-func (r *AnimalRepository) GetCategoriesByAnimalSlug(slug string) ([]Category, error) {
+// GetCategoriesByAnimalSlug возвращает категории животного в рамках клиники
+func (r *AnimalRepository) GetCategoriesByAnimalSlug(clinicSlug, animalSlug string) ([]Category, error) {
 	rows, err := r.db.Query(`
 		SELECT c.id, c.animal_id, c.name, c.slug, COALESCE(c.icon, ''), c.sort_order
 		FROM categories c
 		JOIN animals a ON a.id = c.animal_id
-		WHERE a.slug = $1
+		JOIN clinics cl ON cl.id = a.clinic_id
+		WHERE cl.slug = $1 AND a.slug = $2
 		ORDER BY c.sort_order, c.name
-	`, slug)
+	`, clinicSlug, animalSlug)
 	if err != nil {
 		return nil, err
 	}

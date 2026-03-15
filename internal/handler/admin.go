@@ -10,6 +10,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+
 // AdminHandler содержит зависимости для административных эндпоинтов
 type AdminHandler struct {
 	animalRepo  *repository.AnimalRepository
@@ -83,7 +84,8 @@ func (h *AdminHandler) CreateAnimal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	animal, err := h.animalRepo.Create(input)
+	// TODO: брать clinicID из JWT токена когда заменим на таблицу users
+	animal, err := h.animalRepo.Create(1, input)
 	if err != nil {
 		http.Error(w, "внутренняя ошибка сервера", http.StatusInternalServerError)
 		return
@@ -145,7 +147,8 @@ func (h *AdminHandler) CreateArticle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	article, err := h.articleRepo.Create(input)
+	// TODO: брать clinicID из JWT токена когда заменим на таблицу users
+	article, err := h.articleRepo.Create(1, input)
 	if err != nil {
 		http.Error(w, "внутренняя ошибка сервера", http.StatusInternalServerError)
 		return

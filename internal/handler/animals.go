@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"go-server/internal/repository"
@@ -17,16 +16,20 @@ func NewAnimalHandler(repo *repository.AnimalRepository) *AnimalHandler {
 	return &AnimalHandler{repo: repo}
 }
 
-// GetAnimals обрабатывает GET /api/animals
-// Возвращает список всех животных
+// GetAnimals обрабатывает GET /api/clinics/{clinicSlug}/animals
 func (h *AnimalHandler) GetAnimals(w http.ResponseWriter, r *http.Request) {
-	animals, err := h.repo.GetAll()
+	clinicSlug := r.PathValue("clinicSlug")
+	if clinicSlug == "" {
+		http.Error(w, "неверный запрос", http.StatusBadRequest)
+		return
+	}
+
+	animals, err := h.repo.GetAllByClinic(clinicSlug)
 	if err != nil {
 		http.Error(w, "внутренняя ошибка сервера", http.StatusInternalServerError)
 		return
 	}
 
-	// Если животных нет — возвращаем пустой массив, не null
 	if animals == nil {
 		animals = []repository.Animal{}
 	}
@@ -34,16 +37,16 @@ func (h *AnimalHandler) GetAnimals(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, animals)
 }
 
-// GetCategories обрабатывает GET /api/animals/{slug}/categories
-// Возвращает категории для конкретного животного
+// GetCategories обрабатывает GET /api/clinics/{clinicSlug}/animals/{slug}/categories
 func (h *AnimalHandler) GetCategories(w http.ResponseWriter, r *http.Request) {
+	clinicSlug := r.PathValue("clinicSlug")
 	slug := r.PathValue("slug")
-	if slug == "" {
+	if clinicSlug == "" || slug == "" {
 		http.Error(w, "неверный запрос", http.StatusBadRequest)
 		return
 	}
 
-	categories, err := h.repo.GetCategoriesByAnimalSlug(slug)
+	categories, err := h.repo.GetCategoriesByAnimalSlug(clinicSlug, slug)
 	if err != nil {
 		http.Error(w, "внутренняя ошибка сервера", http.StatusInternalServerError)
 		return
@@ -54,11 +57,4 @@ func (h *AnimalHandler) GetCategories(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, categories)
-}
-
-// writeJSON — вспомогательная функция для отправки JSON ответа
-func writeJSON(w http.ResponseWriter, status int, data any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
 }
