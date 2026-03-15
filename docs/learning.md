@@ -8,6 +8,7 @@
 | Effective Go | https://go.dev/doc/effective_go | Официальный гайд по идиоматичному Go |
 | Go by Example | https://gobyexample.com | Примеры кода на каждую тему |
 | Стандартная библиотека | https://pkg.go.dev/std | Документация всех встроенных пакетов |
+| Go net/http | https://pkg.go.dev/net/http | HTTP сервер — используем в проекте |
 
 ## Docker
 
@@ -45,3 +46,29 @@
 | Bot API | https://core.telegram.org/bots/api | Документация Telegram Bot API |
 | Mini Apps | https://core.telegram.org/bots/webapps | Документация Telegram Mini Apps |
 | Bot Tutorial | https://core.telegram.org/bots/tutorial | Официальный туториал по ботам |
+| telebot.v3 | https://pkg.go.dev/gopkg.in/telebot.v3 | Go библиотека для Telegram — используем в проекте |
+
+## Безопасность
+
+| Материал | Ссылка | Описание |
+|----------|--------|----------|
+| JWT | https://jwt.io/introduction | Что такое JWT токены |
+| golang-jwt | https://pkg.go.dev/github.com/golang-jwt/jwt/v5 | Go библиотека JWT — используем в проекте |
+| OWASP Top 10 | https://owasp.org/www-project-top-ten/ | Топ уязвимостей веб-приложений |
+
+## Фронтенд (для Admin Panel и Mini App)
+
+| Материал | Ссылка | Описание |
+|----------|--------|----------|
+| MUI | https://mui.com/material-ui/getting-started/ | UI библиотека — используем в админке |
+| TanStack Query | https://tanstack.com/query/latest | Запросы к API, кэширование |
+| TanStack Table | https://tanstack.com/table/latest | Таблицы с сортировкой/фильтрацией |
+| React Hook Form | https://react-hook-form.com | Формы в React |
+| Valibot | https://valibot.dev | Валидация данных (альтернатива Zod) |
+| Vite | https://vite.dev | Сборщик — используем в проекте |
+
+## Базы данных — миграции
+
+| Материал | Ссылка | Описание |
+|----------|--------|----------|
+| golang-migrate | https://github.com/golang-migrate/migrate | Миграции БД — используем в проекте |
