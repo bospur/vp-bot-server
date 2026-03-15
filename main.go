@@ -23,7 +23,7 @@ func main() {
 
 	http.HandleFunc("/hello", helloHandler)
 
-	log.Println("server started :8080")
+	log.Println("ура бот запустился")
 
 	err := http.ListenAndServe(":8080", nil)
 
