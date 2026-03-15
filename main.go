@@ -31,9 +31,17 @@ func main() {
 	animalRepo := repository.NewAnimalRepository(database)
 	animalHandler := handler.NewAnimalHandler(animalRepo)
 
+	articleRepo := repository.NewArticleRepository(database)
+	articleHandler := handler.NewArticleHandler(articleRepo)
+
 	// Роуты
 	http.HandleFunc("/api/animals", animalHandler.GetAnimals)
 	http.HandleFunc("/api/animals/", animalHandler.GetCategories)
+	http.HandleFunc("/api/articles/", articleHandler.GetArticle)
+
+	// Роут для статей категории — более специфичный паттерн
+	// /api/animals/{slug}/categories/{categorySlug}/articles
+	http.HandleFunc("/api/animals/{animalSlug}/categories/", articleHandler.GetArticles)
 
 	log.Println("server started :8080")
 
