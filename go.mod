@@ -9,4 +9,7 @@ require (
 	gopkg.in/telebot.v3 v3.3.8
 )
 
-require golang.org/x/crypto v0.49.0 // indirect
+require (
+	golang.org/x/crypto v0.49.0 // indirect
+	golang.org/x/net v0.52.0 // indirect
+)

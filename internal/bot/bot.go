@@ -8,6 +8,7 @@ import (
 
 	"go-server/internal/repository"
 
+	xhtml "golang.org/x/net/html"
 	tele "gopkg.in/telebot.v3"
 )
 
@@ -266,11 +267,11 @@ func (b *Bot) showArticle(c tele.Context, slug string) error {
 		return c.Edit("Статья не найдена.")
 	}
 
-	text := fmt.Sprintf("*%s*\n\n%s", article.Title, article.Content)
+	text := fmt.Sprintf("<b>%s</b>\n\n%s", xhtml.EscapeString(article.Title), htmlToTelegram(article.Content))
 
 	backBtn := tele.Btn{Text: "⬅️ Назад", Data: "back:start"}
 	menu := &tele.ReplyMarkup{}
 	menu.Inline(tele.Row{backBtn})
 
-	return c.Edit(text, menu, tele.ModeMarkdown)
+	return c.Edit(text, menu, tele.ModeHTML)
 }
