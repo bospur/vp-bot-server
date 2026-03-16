@@ -1,0 +1,31 @@
+services:
+
+  # ── Go приложение ────────────────────────────────────────────────────────────
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env                  # переменные окружения из файла .env
+    ports:
+      - "127.0.0.1:8080:8080"      # доступен только локально (системный nginx проксирует)
+    depends_on:
+      - db
+    networks:
+      - internal
+
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data   # данные сохраняются между перезапусками
+    networks:
+      - internal
+
+# ── Общая сеть (изолирована от хоста) ───────────────────────────────────────
+networks:
+  internal:
+
+# ── Постоянное хранилище для БД ──────────────────────────────────────────────
+volumes:
+  postgres_data:
