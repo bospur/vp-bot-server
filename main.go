@@ -113,7 +113,7 @@ func main() {
 	go tgBot.Start()
 
 	log.Println("server started :8080")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	if err := http.ListenAndServe(":8080", middleware.CORS(http.DefaultServeMux)); err != nil {
 		log.Fatal(err)
 	}
 }
