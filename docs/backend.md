@@ -12,15 +12,17 @@ internal/
 │   ├── articles.go      — SQL запросы: articles, article_categories (CRUD)
 │   └── users.go         — SQL запросы: users
 ├── handler/
-│   ├── animals.go       — HTTP хендлеры: GET animals, categories
-│   ├── articles.go      — HTTP хендлеры: GET articles
-│   ├── admin.go         — HTTP хендлеры: авторизация, CRUD
+│   ├── animals.go       — HTTP хендлеры: GET animals, categories (публичный)
+│   ├── articles.go      — HTTP хендлеры: GET articles (публичный)
+│   ├── admin.go         — HTTP хендлеры: авторизация, CRUD + admin GET
 │   └── helpers.go       — общие утилиты (writeJSON)
 ├── middleware/
-│   └── auth.go          — JWT middleware
-│   └── auth_test.go     — unit тесты
+│   ├── auth.go          — JWT middleware
+│   ├── auth_test.go     — unit тесты
+│   └── cors.go          — CORS middleware
 └── bot/
-    └── bot.go           — Telegram бот
+    ├── bot.go           — Telegram бот (хендлеры, навигация)
+    └── htmlformat.go    — конвертер HTML → Telegram HTML
 migrations/
 ├── 001_create_animals.up/down.sql
 ├── 002_create_categories.up/down.sql
@@ -34,7 +36,7 @@ migrations/
 HTTP запрос
     │
     ▼
-middleware (Auth) — проверка JWT для /api/admin/*
+middleware (CORS, Auth) — CORS для всех, JWT для /api/admin/*
     │
     ▼
 handler — читает запрос, вызывает repository, отвечает JSON
@@ -60,6 +62,9 @@ PostgreSQL
 | Метод | URL | Защита | Описание |
 |-------|-----|--------|----------|
 | POST | `/api/admin/login` | — | Получить JWT токен |
+| GET | `/api/admin/articles` | JWT | Все статьи клиники |
+| GET | `/api/admin/articles/{id}` | JWT | Одна статья по id |
+| GET | `/api/admin/articles/{id}/categories` | JWT | Категории статьи |
 | POST | `/api/admin/animals` | JWT | Создать животное |
 | PUT | `/api/admin/animals/{id}` | JWT | Обновить животное |
 | DELETE | `/api/admin/animals/{id}` | JWT | Удалить животное |
@@ -79,22 +84,26 @@ JWT токен передаётся в заголовке:
 Authorization: Bearer <token>
 ```
 Токен действует 24 часа и содержит `user_id`, `clinic_id`, `role`.
-
 Пароли хранятся в БД в виде bcrypt хешей.
+
+## Формат контента статей
+
+Поле `content` хранит HTML-строку, генерируемую TipTap в админке.
+Бот конвертирует HTML → Telegram HTML через `htmlToTelegram()` в `internal/bot/htmlformat.go`.
+
+Поддерживаемые теги: `<h1>–<h3>`, `<p>`, `<strong>`, `<em>`, `<s>`, `<ul>`, `<ol>`, `<li>`, `<code>`, `<pre>`, `<br>`.
 
 ## Первый пользователь
 
 При первом запуске если таблица `users` пуста — создаётся admin пользователь
 из переменных `ADMIN_LOGIN` и `ADMIN_PASSWORD`. После создания env переменные
-можно убрать — они больше не используются для авторизации.
+можно убрать.
 
 ## Мультитенантность
 
-Каждая сущность привязана к `clinic_id`.
-
-- Публичный API: клиника определяется по `clinicSlug` в URL
-- Admin API: клиника из JWT токена (`clinic_id`)
-- Telegram бот: клиника из переменной окружения `CLINIC_SLUG`
+- Публичный API: клиника по `clinicSlug` в URL
+- Admin API: клиника из JWT (`clinic_id`)
+- Telegram бот: клиника из `CLINIC_SLUG` env
 
 ## Переменные окружения
 
