@@ -218,6 +218,63 @@ func (h *AdminHandler) DeleteCategory(w http.ResponseWriter, r *http.Request) {
 
 // ── Articles CRUD ─────────────────────────────────────────────────────────────
 
+// GetAdminArticles обрабатывает GET /api/admin/articles
+func (h *AdminHandler) GetAdminArticles(w http.ResponseWriter, r *http.Request) {
+	// TODO: брать clinicID из JWT токена
+	articles, err := h.articleRepo.GetAll(1)
+	if err != nil {
+		log.Printf("ошибка получения статей: %v", err)
+		http.Error(w, "внутренняя ошибка сервера", http.StatusInternalServerError)
+		return
+	}
+	if articles == nil {
+		articles = []repository.Article{}
+	}
+	writeJSON(w, http.StatusOK, articles)
+}
+
+// GetAdminArticle обрабатывает GET /api/admin/articles/{id}
+func (h *AdminHandler) GetAdminArticle(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "неверный запрос", http.StatusBadRequest)
+		return
+	}
+
+	article, err := h.articleRepo.GetByID(id)
+	if err != nil {
+		log.Printf("ошибка получения статьи: %v", err)
+		http.Error(w, "внутренняя ошибка сервера", http.StatusInternalServerError)
+		return
+	}
+	if article == nil {
+		http.Error(w, "не найдено", http.StatusNotFound)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, article)
+}
+
+// GetArticleCategories обрабатывает GET /api/admin/articles/{id}/categories
+func (h *AdminHandler) GetArticleCategories(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "неверный запрос", http.StatusBadRequest)
+		return
+	}
+
+	categories, err := h.articleRepo.GetCategories(id)
+	if err != nil {
+		log.Printf("ошибка получения категорий статьи: %v", err)
+		http.Error(w, "внутренняя ошибка сервера", http.StatusInternalServerError)
+		return
+	}
+	if categories == nil {
+		categories = []repository.Category{}
+	}
+	writeJSON(w, http.StatusOK, categories)
+}
+
 // CreateArticle обрабатывает POST /api/admin/articles
 func (h *AdminHandler) CreateArticle(w http.ResponseWriter, r *http.Request) {
 	var input repository.ArticleInput

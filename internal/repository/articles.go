@@ -86,6 +86,69 @@ func (r *ArticleRepository) RemoveFromCategory(articleID, categoryID string) err
 	return err
 }
 
+// GetAll возвращает все статьи клиники
+func (r *ArticleRepository) GetAll(clinicID int) ([]Article, error) {
+	rows, err := r.db.Query(`
+		SELECT id, title, content, slug FROM articles
+		WHERE clinic_id = $1
+		ORDER BY title
+	`, clinicID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var articles []Article
+	for rows.Next() {
+		var a Article
+		if err := rows.Scan(&a.ID, &a.Title, &a.Content, &a.Slug); err != nil {
+			return nil, err
+		}
+		articles = append(articles, a)
+	}
+	return articles, nil
+}
+
+// GetByID возвращает статью по id
+func (r *ArticleRepository) GetByID(id string) (*Article, error) {
+	var a Article
+	err := r.db.QueryRow(`
+		SELECT id, title, content, slug FROM articles WHERE id=$1
+	`, id).Scan(&a.ID, &a.Title, &a.Content, &a.Slug)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
+// GetCategories возвращает категории, привязанные к статье
+func (r *ArticleRepository) GetCategories(articleID string) ([]Category, error) {
+	rows, err := r.db.Query(`
+		SELECT c.id, c.animal_id, c.name, c.slug, COALESCE(c.icon, ''), c.sort_order
+		FROM categories c
+		JOIN article_categories ac ON ac.category_id = c.id
+		WHERE ac.article_id = $1
+		ORDER BY c.name
+	`, articleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var categories []Category
+	for rows.Next() {
+		var c Category
+		if err := rows.Scan(&c.ID, &c.AnimalID, &c.Name, &c.Slug, &c.Icon, &c.SortOrder); err != nil {
+			return nil, err
+		}
+		categories = append(categories, c)
+	}
+	return categories, nil
+}
+
 // GetByCategory возвращает список статей для конкретной категории животного в рамках клиники
 func (r *ArticleRepository) GetByCategory(clinicSlug, animalSlug, categorySlug string) ([]Article, error) {
 	rows, err := r.db.Query(`

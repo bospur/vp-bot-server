@@ -99,6 +99,9 @@ func main() {
 	http.HandleFunc("DELETE /api/admin/categories/{id}", auth(adminHandler.DeleteCategory))
 
 	// Articles
+	http.HandleFunc("GET /api/admin/articles", auth(adminHandler.GetAdminArticles))
+	http.HandleFunc("GET /api/admin/articles/{id}", auth(adminHandler.GetAdminArticle))
+	http.HandleFunc("GET /api/admin/articles/{id}/categories", auth(adminHandler.GetArticleCategories))
 	http.HandleFunc("POST /api/admin/articles", auth(adminHandler.CreateArticle))
 	http.HandleFunc("PUT /api/admin/articles/{id}", auth(adminHandler.UpdateArticle))
 	http.HandleFunc("DELETE /api/admin/articles/{id}", auth(adminHandler.DeleteArticle))
