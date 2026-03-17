@@ -21,8 +21,10 @@ func makeToken(secret string, expired bool) string {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"login": "admin",
-		"exp":   exp.Unix(),
+		"user_id":   float64(1),
+		"clinic_id": float64(1),
+		"role":      "admin",
+		"exp":       exp.Unix(),
 	})
 
 	str, _ := token.SignedString([]byte(secret))

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"go-server/internal/middleware"
 	"go-server/internal/repository"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -61,13 +62,11 @@ func (h *AdminHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Пользователь не найден или пароль неверный — одинаковое сообщение (безопасность)
 	if user == nil || bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)) != nil {
 		http.Error(w, "неверный логин или пароль", http.StatusUnauthorized)
 		return
 	}
 
-	// Создаём JWT с данными пользователя
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id":   user.ID,
 		"clinic_id": user.ClinicID,
@@ -88,14 +87,15 @@ func (h *AdminHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 // CreateAnimal обрабатывает POST /api/admin/animals
 func (h *AdminHandler) CreateAnimal(w http.ResponseWriter, r *http.Request) {
+	claims := middleware.ClaimsFromContext(r)
+
 	var input repository.AnimalInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, "неверный формат запроса", http.StatusBadRequest)
 		return
 	}
 
-	// TODO: брать clinicID из JWT токена
-	animal, err := h.animalRepo.Create(1, input)
+	animal, err := h.animalRepo.Create(claims.ClinicID, input)
 	if err != nil {
 		log.Printf("ошибка создания животного: %v", err)
 		http.Error(w, "внутренняя ошибка сервера", http.StatusInternalServerError)
@@ -154,14 +154,15 @@ func (h *AdminHandler) DeleteAnimal(w http.ResponseWriter, r *http.Request) {
 
 // CreateCategory обрабатывает POST /api/admin/categories
 func (h *AdminHandler) CreateCategory(w http.ResponseWriter, r *http.Request) {
+	claims := middleware.ClaimsFromContext(r)
+
 	var input repository.CategoryInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, "неверный формат запроса", http.StatusBadRequest)
 		return
 	}
 
-	// TODO: брать clinicID из JWT токена
-	category, err := h.animalRepo.CreateCategory(1, input)
+	category, err := h.animalRepo.CreateCategory(claims.ClinicID, input)
 	if err != nil {
 		log.Printf("ошибка создания категории: %v", err)
 		http.Error(w, "внутренняя ошибка сервера", http.StatusInternalServerError)
@@ -220,8 +221,9 @@ func (h *AdminHandler) DeleteCategory(w http.ResponseWriter, r *http.Request) {
 
 // GetAdminArticles обрабатывает GET /api/admin/articles
 func (h *AdminHandler) GetAdminArticles(w http.ResponseWriter, r *http.Request) {
-	// TODO: брать clinicID из JWT токена
-	articles, err := h.articleRepo.GetAll(1)
+	claims := middleware.ClaimsFromContext(r)
+
+	articles, err := h.articleRepo.GetAll(claims.ClinicID)
 	if err != nil {
 		log.Printf("ошибка получения статей: %v", err)
 		http.Error(w, "внутренняя ошибка сервера", http.StatusInternalServerError)
@@ -277,14 +279,15 @@ func (h *AdminHandler) GetArticleCategories(w http.ResponseWriter, r *http.Reque
 
 // CreateArticle обрабатывает POST /api/admin/articles
 func (h *AdminHandler) CreateArticle(w http.ResponseWriter, r *http.Request) {
+	claims := middleware.ClaimsFromContext(r)
+
 	var input repository.ArticleInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		http.Error(w, "неверный формат запроса", http.StatusBadRequest)
 		return
 	}
 
-	// TODO: брать clinicID из JWT токена
-	article, err := h.articleRepo.Create(1, input)
+	article, err := h.articleRepo.Create(claims.ClinicID, input)
 	if err != nil {
 		log.Printf("ошибка создания статьи: %v", err)
 		http.Error(w, "внутренняя ошибка сервера", http.StatusInternalServerError)
@@ -295,11 +298,25 @@ func (h *AdminHandler) CreateArticle(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateArticle обрабатывает PUT /api/admin/articles/{id}
+// Editor не может редактировать опубликованные статьи
 func (h *AdminHandler) UpdateArticle(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
 		http.Error(w, "неверный запрос", http.StatusBadRequest)
 		return
+	}
+
+	claims := middleware.ClaimsFromContext(r)
+	if claims.Role == "editor" {
+		status, err := h.articleRepo.GetStatus(id)
+		if err != nil {
+			http.Error(w, "не найдено", http.StatusNotFound)
+			return
+		}
+		if status == "published" {
+			http.Error(w, "нельзя редактировать опубликованную статью", http.StatusForbidden)
+			return
+		}
 	}
 
 	var input repository.ArticleInput
@@ -322,12 +339,67 @@ func (h *AdminHandler) UpdateArticle(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, article)
 }
 
+// UpdateArticleStatus обрабатывает PATCH /api/admin/articles/{id}/status
+// Только admin может менять статус
+func (h *AdminHandler) UpdateArticleStatus(w http.ResponseWriter, r *http.Request) {
+	claims := middleware.ClaimsFromContext(r)
+	if claims.Role != "admin" {
+		http.Error(w, "доступ запрещён", http.StatusForbidden)
+		return
+	}
+
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "неверный запрос", http.StatusBadRequest)
+		return
+	}
+
+	var body struct {
+		Status string `json:"status"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "неверный формат запроса", http.StatusBadRequest)
+		return
+	}
+	if body.Status != "draft" && body.Status != "published" {
+		http.Error(w, "недопустимый статус", http.StatusBadRequest)
+		return
+	}
+
+	article, err := h.articleRepo.UpdateStatus(id, body.Status)
+	if err != nil {
+		log.Printf("ошибка обновления статуса статьи: %v", err)
+		http.Error(w, "внутренняя ошибка сервера", http.StatusInternalServerError)
+		return
+	}
+	if article == nil {
+		http.Error(w, "не найдено", http.StatusNotFound)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, article)
+}
+
 // DeleteArticle обрабатывает DELETE /api/admin/articles/{id}
+// Editor может удалять только черновики
 func (h *AdminHandler) DeleteArticle(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if id == "" {
 		http.Error(w, "неверный запрос", http.StatusBadRequest)
 		return
+	}
+
+	claims := middleware.ClaimsFromContext(r)
+	if claims.Role == "editor" {
+		status, err := h.articleRepo.GetStatus(id)
+		if err != nil {
+			http.Error(w, "не найдено", http.StatusNotFound)
+			return
+		}
+		if status == "published" {
+			http.Error(w, "нельзя удалить опубликованную статью", http.StatusForbidden)
+			return
+		}
 	}
 
 	if err := h.articleRepo.Delete(id); err != nil {

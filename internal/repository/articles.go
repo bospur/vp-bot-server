@@ -10,9 +10,10 @@ type Article struct {
 	Title   string `json:"title"`
 	Content string `json:"content"`
 	Slug    string `json:"slug"`
+	Status  string `json:"status"`
 }
 
-// ArticleInput — данные для создания/обновления статьи
+// ArticleInput — данные для создания/обновления содержимого статьи
 type ArticleInput struct {
 	Title   string `json:"title"`
 	Content string `json:"content"`
@@ -29,30 +30,30 @@ func NewArticleRepository(db *sql.DB) *ArticleRepository {
 	return &ArticleRepository{db: db}
 }
 
-// Create создаёт новую статью
+// Create создаёт новую статью со статусом draft
 func (r *ArticleRepository) Create(clinicID int, input ArticleInput) (*Article, error) {
 	var a Article
 	err := r.db.QueryRow(`
-		INSERT INTO articles (clinic_id, title, content, slug)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, title, content, slug
+		INSERT INTO articles (clinic_id, title, content, slug, status)
+		VALUES ($1, $2, $3, $4, 'draft')
+		RETURNING id, title, content, slug, status
 	`, clinicID, input.Title, input.Content, input.Slug).
-		Scan(&a.ID, &a.Title, &a.Content, &a.Slug)
+		Scan(&a.ID, &a.Title, &a.Content, &a.Slug, &a.Status)
 	if err != nil {
 		return nil, err
 	}
 	return &a, nil
 }
 
-// Update обновляет статью по id
+// Update обновляет содержимое статьи (только title, content, slug — не статус)
 func (r *ArticleRepository) Update(id string, input ArticleInput) (*Article, error) {
 	var a Article
 	err := r.db.QueryRow(`
 		UPDATE articles SET title=$1, content=$2, slug=$3, updated_at=NOW()
 		WHERE id=$4
-		RETURNING id, title, content, slug
+		RETURNING id, title, content, slug, status
 	`, input.Title, input.Content, input.Slug, id).
-		Scan(&a.ID, &a.Title, &a.Content, &a.Slug)
+		Scan(&a.ID, &a.Title, &a.Content, &a.Slug, &a.Status)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -60,6 +61,34 @@ func (r *ArticleRepository) Update(id string, input ArticleInput) (*Article, err
 		return nil, err
 	}
 	return &a, nil
+}
+
+// UpdateStatus меняет статус статьи
+func (r *ArticleRepository) UpdateStatus(id, status string) (*Article, error) {
+	var a Article
+	err := r.db.QueryRow(`
+		UPDATE articles SET status=$1, updated_at=NOW()
+		WHERE id=$2
+		RETURNING id, title, content, slug, status
+	`, status, id).
+		Scan(&a.ID, &a.Title, &a.Content, &a.Slug, &a.Status)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
+// GetStatus возвращает текущий статус статьи
+func (r *ArticleRepository) GetStatus(id string) (string, error) {
+	var status string
+	err := r.db.QueryRow(`SELECT status FROM articles WHERE id=$1`, id).Scan(&status)
+	if err != nil {
+		return "", err
+	}
+	return status, nil
 }
 
 // Delete удаляет статью по id
@@ -86,10 +115,10 @@ func (r *ArticleRepository) RemoveFromCategory(articleID, categoryID string) err
 	return err
 }
 
-// GetAll возвращает все статьи клиники
+// GetAll возвращает все статьи клиники (включая черновики — для админки)
 func (r *ArticleRepository) GetAll(clinicID int) ([]Article, error) {
 	rows, err := r.db.Query(`
-		SELECT id, title, content, slug FROM articles
+		SELECT id, title, content, slug, status FROM articles
 		WHERE clinic_id = $1
 		ORDER BY title
 	`, clinicID)
@@ -101,7 +130,7 @@ func (r *ArticleRepository) GetAll(clinicID int) ([]Article, error) {
 	var articles []Article
 	for rows.Next() {
 		var a Article
-		if err := rows.Scan(&a.ID, &a.Title, &a.Content, &a.Slug); err != nil {
+		if err := rows.Scan(&a.ID, &a.Title, &a.Content, &a.Slug, &a.Status); err != nil {
 			return nil, err
 		}
 		articles = append(articles, a)
@@ -113,8 +142,8 @@ func (r *ArticleRepository) GetAll(clinicID int) ([]Article, error) {
 func (r *ArticleRepository) GetByID(id string) (*Article, error) {
 	var a Article
 	err := r.db.QueryRow(`
-		SELECT id, title, content, slug FROM articles WHERE id=$1
-	`, id).Scan(&a.ID, &a.Title, &a.Content, &a.Slug)
+		SELECT id, title, content, slug, status FROM articles WHERE id=$1
+	`, id).Scan(&a.ID, &a.Title, &a.Content, &a.Slug, &a.Status)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}
@@ -149,16 +178,16 @@ func (r *ArticleRepository) GetCategories(articleID string) ([]Category, error) 
 	return categories, nil
 }
 
-// GetByCategory возвращает список статей для конкретной категории животного в рамках клиники
+// GetByCategory возвращает опубликованные статьи для конкретной категории (для публичного API / бота)
 func (r *ArticleRepository) GetByCategory(clinicSlug, animalSlug, categorySlug string) ([]Article, error) {
 	rows, err := r.db.Query(`
-		SELECT a.id, a.title, a.content, a.slug
+		SELECT a.id, a.title, a.content, a.slug, a.status
 		FROM articles a
 		JOIN article_categories ac ON ac.article_id = a.id
 		JOIN categories c ON c.id = ac.category_id
 		JOIN animals an ON an.id = c.animal_id
 		JOIN clinics cl ON cl.id = an.clinic_id
-		WHERE cl.slug = $1 AND an.slug = $2 AND c.slug = $3
+		WHERE cl.slug = $1 AND an.slug = $2 AND c.slug = $3 AND a.status = 'published'
 		ORDER BY a.title
 	`, clinicSlug, animalSlug, categorySlug)
 	if err != nil {
@@ -169,7 +198,7 @@ func (r *ArticleRepository) GetByCategory(clinicSlug, animalSlug, categorySlug s
 	var articles []Article
 	for rows.Next() {
 		var a Article
-		if err := rows.Scan(&a.ID, &a.Title, &a.Content, &a.Slug); err != nil {
+		if err := rows.Scan(&a.ID, &a.Title, &a.Content, &a.Slug, &a.Status); err != nil {
 			return nil, err
 		}
 		articles = append(articles, a)
@@ -178,18 +207,18 @@ func (r *ArticleRepository) GetByCategory(clinicSlug, animalSlug, categorySlug s
 	return articles, nil
 }
 
-// GetBySlug возвращает одну статью по slug в рамках клиники
+// GetBySlug возвращает опубликованную статью по slug (для публичного API / бота)
 func (r *ArticleRepository) GetBySlug(clinicSlug, slug string) (*Article, error) {
 	var a Article
 	err := r.db.QueryRow(`
-		SELECT a.id, a.title, a.content, a.slug
+		SELECT a.id, a.title, a.content, a.slug, a.status
 		FROM articles a
 		JOIN clinics c ON c.id = a.clinic_id
-		WHERE c.slug = $1 AND a.slug = $2
-	`, clinicSlug, slug).Scan(&a.ID, &a.Title, &a.Content, &a.Slug)
+		WHERE c.slug = $1 AND a.slug = $2 AND a.status = 'published'
+	`, clinicSlug, slug).Scan(&a.ID, &a.Title, &a.Content, &a.Slug, &a.Status)
 
 	if err == sql.ErrNoRows {
-		return nil, nil // статья не найдена
+		return nil, nil
 	}
 	if err != nil {
 		return nil, err
