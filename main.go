@@ -98,6 +98,11 @@ func main() {
 	http.HandleFunc("PUT /api/admin/categories/{id}", auth(adminHandler.UpdateCategory))
 	http.HandleFunc("DELETE /api/admin/categories/{id}", auth(adminHandler.DeleteCategory))
 
+	// Users (только admin)
+	http.HandleFunc("GET /api/admin/users", auth(adminHandler.GetAdminUsers))
+	http.HandleFunc("POST /api/admin/users", auth(adminHandler.CreateAdminUser))
+	http.HandleFunc("DELETE /api/admin/users/{id}", auth(adminHandler.DeleteAdminUser))
+
 	// Articles
 	http.HandleFunc("GET /api/admin/articles", auth(adminHandler.GetAdminArticles))
 	http.HandleFunc("GET /api/admin/articles/{id}", auth(adminHandler.GetAdminArticle))

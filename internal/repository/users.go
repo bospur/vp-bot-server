@@ -41,6 +41,35 @@ func (r *UserRepository) GetByLogin(login string) (*User, error) {
 	return &u, nil
 }
 
+// GetAll возвращает всех пользователей клиники
+func (r *UserRepository) GetAll(clinicID int) ([]User, error) {
+	rows, err := r.db.Query(`
+		SELECT id, clinic_id, login, role FROM users
+		WHERE clinic_id = $1
+		ORDER BY login
+	`, clinicID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []User
+	for rows.Next() {
+		var u User
+		if err := rows.Scan(&u.ID, &u.ClinicID, &u.Login, &u.Role); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, nil
+}
+
+// Delete удаляет пользователя по id
+func (r *UserRepository) Delete(id string) error {
+	_, err := r.db.Exec(`DELETE FROM users WHERE id=$1`, id)
+	return err
+}
+
 // Count возвращает количество пользователей
 func (r *UserRepository) Count() (int, error) {
 	var count int

@@ -411,6 +411,93 @@ func (h *AdminHandler) DeleteArticle(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// ── Users CRUD (только admin) ─────────────────────────────────────────────────
+
+// GetAdminUsers обрабатывает GET /api/admin/users
+func (h *AdminHandler) GetAdminUsers(w http.ResponseWriter, r *http.Request) {
+	claims := middleware.ClaimsFromContext(r)
+	if claims.Role != "admin" {
+		http.Error(w, "доступ запрещён", http.StatusForbidden)
+		return
+	}
+
+	users, err := h.userRepo.GetAll(claims.ClinicID)
+	if err != nil {
+		log.Printf("ошибка получения пользователей: %v", err)
+		http.Error(w, "внутренняя ошибка сервера", http.StatusInternalServerError)
+		return
+	}
+	if users == nil {
+		users = []repository.User{}
+	}
+	writeJSON(w, http.StatusOK, users)
+}
+
+// CreateAdminUser обрабатывает POST /api/admin/users
+func (h *AdminHandler) CreateAdminUser(w http.ResponseWriter, r *http.Request) {
+	claims := middleware.ClaimsFromContext(r)
+	if claims.Role != "admin" {
+		http.Error(w, "доступ запрещён", http.StatusForbidden)
+		return
+	}
+
+	var body struct {
+		Login    string `json:"login"`
+		Password string `json:"password"`
+		Role     string `json:"role"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "неверный формат запроса", http.StatusBadRequest)
+		return
+	}
+	if body.Login == "" || body.Password == "" {
+		http.Error(w, "логин и пароль обязательны", http.StatusBadRequest)
+		return
+	}
+	if body.Role != "admin" && body.Role != "editor" {
+		http.Error(w, "недопустимая роль", http.StatusBadRequest)
+		return
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
+	if err != nil {
+		http.Error(w, "внутренняя ошибка сервера", http.StatusInternalServerError)
+		return
+	}
+
+	user, err := h.userRepo.Create(claims.ClinicID, body.Login, string(hash), body.Role)
+	if err != nil {
+		log.Printf("ошибка создания пользователя: %v", err)
+		http.Error(w, "пользователь с таким логином уже существует", http.StatusConflict)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, user)
+}
+
+// DeleteAdminUser обрабатывает DELETE /api/admin/users/{id}
+func (h *AdminHandler) DeleteAdminUser(w http.ResponseWriter, r *http.Request) {
+	claims := middleware.ClaimsFromContext(r)
+	if claims.Role != "admin" {
+		http.Error(w, "доступ запрещён", http.StatusForbidden)
+		return
+	}
+
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "неверный запрос", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.userRepo.Delete(id); err != nil {
+		log.Printf("ошибка удаления пользователя: %v", err)
+		http.Error(w, "внутренняя ошибка сервера", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // AssignArticleToCategory обрабатывает POST /api/admin/articles/{id}/categories/{categoryId}
 func (h *AdminHandler) AssignArticleToCategory(w http.ResponseWriter, r *http.Request) {
 	articleID := r.PathValue("id")

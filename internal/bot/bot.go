@@ -260,6 +260,8 @@ func (b *Bot) showArticles(c tele.Context, animalSlug, categorySlug string) erro
 }
 
 // showArticle показывает содержимое статьи
+// Удаляем старое сообщение и отправляем новое, чтобы Telegram
+// показал начало статьи, а не её конец
 func (b *Bot) showArticle(c tele.Context, slug string) error {
 	article, err := b.articleRepo.GetBySlug(b.clinicSlug, slug)
 	if err != nil || article == nil {
@@ -273,5 +275,9 @@ func (b *Bot) showArticle(c tele.Context, slug string) error {
 	menu := &tele.ReplyMarkup{}
 	menu.Inline(tele.Row{backBtn})
 
-	return c.Edit(text, menu, tele.ModeHTML)
+	if err := c.Delete(); err != nil {
+		log.Printf("не удалось удалить сообщение меню: %v", err)
+	}
+
+	return c.Send(text, menu, tele.ModeHTML)
 }
