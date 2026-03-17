@@ -3,6 +3,7 @@ package bot
 import (
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -161,6 +162,17 @@ func (b *Bot) handleCallback(c tele.Context) error {
 		return b.showArticles(c, parts[0], parts[1])
 	case "article":
 		return b.showArticle(c, cbValue)
+	case "ap":
+		// Формат cbValue: "slug:pageIndex"
+		parts := strings.SplitN(cbValue, ":", 2)
+		if len(parts) != 2 {
+			return c.Respond()
+		}
+		pageIdx, err := strconv.Atoi(parts[1])
+		if err != nil {
+			return c.Respond()
+		}
+		return b.showArticlePageBySlug(c, parts[0], pageIdx)
 	case "back":
 		// C. Кнопка "Назад" — возвращает к списку животных
 		return b.showAnimalsInline(c)
@@ -259,9 +271,7 @@ func (b *Bot) showArticles(c tele.Context, animalSlug, categorySlug string) erro
 	return c.Edit("Выберите статью:", menu)
 }
 
-// showArticle показывает содержимое статьи
-// Удаляем старое сообщение и отправляем новое, чтобы Telegram
-// показал начало статьи, а не её конец
+// showArticle показывает первую страницу статьи
 func (b *Bot) showArticle(c tele.Context, slug string) error {
 	article, err := b.articleRepo.GetBySlug(b.clinicSlug, slug)
 	if err != nil || article == nil {
@@ -269,15 +279,66 @@ func (b *Bot) showArticle(c tele.Context, slug string) error {
 		return c.Edit("Статья не найдена.")
 	}
 
-	text := fmt.Sprintf("<b>%s</b>\n\n%s", xhtml.EscapeString(article.Title), htmlToTelegram(article.Content))
-
-	backBtn := tele.Btn{Text: "⬅️ Назад", Data: "back:start"}
-	menu := &tele.ReplyMarkup{}
-	menu.Inline(tele.Row{backBtn})
+	pages := paginateText(htmlToTelegram(article.Content))
 
 	if err := c.Delete(); err != nil {
 		log.Printf("не удалось удалить сообщение меню: %v", err)
 	}
+	return b.renderArticlePage(c, article.Title, slug, pages, 0, false)
+}
 
+// showArticlePageBySlug загружает статью и показывает нужную страницу (редактируя текущее сообщение)
+func (b *Bot) showArticlePageBySlug(c tele.Context, slug string, pageIdx int) error {
+	article, err := b.articleRepo.GetBySlug(b.clinicSlug, slug)
+	if err != nil || article == nil {
+		return c.Edit("Статья не найдена.")
+	}
+
+	pages := paginateText(htmlToTelegram(article.Content))
+	if pageIdx < 0 {
+		pageIdx = 0
+	}
+	if pageIdx >= len(pages) {
+		pageIdx = len(pages) - 1
+	}
+
+	return b.renderArticlePage(c, article.Title, slug, pages, pageIdx, true)
+}
+
+// renderArticlePage формирует и отправляет/редактирует сообщение со страницей статьи
+func (b *Bot) renderArticlePage(c tele.Context, title, slug string, pages []string, pageIdx int, edit bool) error {
+	total := len(pages)
+
+	var text string
+	if total == 1 {
+		text = fmt.Sprintf("<b>%s</b>\n\n%s", xhtml.EscapeString(title), pages[0])
+	} else {
+		text = fmt.Sprintf("<b>%s</b>  <i>(%d/%d)</i>\n\n%s", xhtml.EscapeString(title), pageIdx+1, total, pages[pageIdx])
+	}
+
+	var rows []tele.Row
+
+	// Кнопки листания
+	if total > 1 {
+		var navRow tele.Row
+		if pageIdx > 0 {
+			navRow = append(navRow, tele.Btn{Text: "← Назад", Data: fmt.Sprintf("ap:%s:%d", slug, pageIdx-1)})
+		}
+		if pageIdx < total-1 {
+			navRow = append(navRow, tele.Btn{Text: "Далее →", Data: fmt.Sprintf("ap:%s:%d", slug, pageIdx+1)})
+		}
+		if len(navRow) > 0 {
+			rows = append(rows, navRow)
+		}
+	}
+
+	rows = append(rows, tele.Row{tele.Btn{Text: "⬅️ В меню", Data: "back:start"}})
+
+	menu := &tele.ReplyMarkup{}
+	menu.Inline(rows...)
+
+	if edit {
+		return c.Edit(text, menu, tele.ModeHTML)
+	}
 	return c.Send(text, menu, tele.ModeHTML)
 }

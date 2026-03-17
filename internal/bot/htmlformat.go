@@ -137,6 +137,41 @@ func writeLiContent(sb *strings.Builder, li *html.Node) {
 	}
 }
 
+// pageCharLimit — максимальное количество символов на одну страницу статьи
+const pageCharLimit = 1200
+
+// paginateText разбивает текст на страницы по границам абзацев
+func paginateText(text string) []string {
+	if len([]rune(text)) <= pageCharLimit {
+		return []string{text}
+	}
+
+	paragraphs := strings.Split(text, "\n\n")
+	var pages []string
+	var current strings.Builder
+
+	for i, para := range paragraphs {
+		addition := para
+		if i > 0 {
+			addition = "\n\n" + para
+		}
+		if current.Len() > 0 && len([]rune(current.String()))+len([]rune(addition)) > pageCharLimit {
+			pages = append(pages, strings.TrimSpace(current.String()))
+			current.Reset()
+			current.WriteString(para)
+		} else {
+			current.WriteString(addition)
+		}
+	}
+	if current.Len() > 0 {
+		pages = append(pages, strings.TrimSpace(current.String()))
+	}
+	if len(pages) == 0 {
+		return []string{text}
+	}
+	return pages
+}
+
 func stripTags(s string) string {
 	var sb strings.Builder
 	inTag := false
