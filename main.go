@@ -153,7 +153,7 @@ func main() {
 	http.HandleFunc("PATCH /api/admin/settings", auth(doctorHandler.UpdateSettings))
 
 	// Telegram бот
-	tgBot, err := bot.New(botToken, clinicSlug, animalRepo, articleRepo)
+	tgBot, err := bot.New(botToken, clinicSlug, animalRepo, articleRepo, doctorRepo)
 	if err != nil {
 		log.Fatalf("ошибка инициализации бота: %v", err)
 	}

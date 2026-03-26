@@ -19,10 +19,11 @@ type Bot struct {
 	clinicSlug  string
 	animalRepo  *repository.AnimalRepository
 	articleRepo *repository.ArticleRepository
+	doctorRepo  *repository.DoctorRepository
 }
 
 // New создаёт и настраивает Telegram бота
-func New(token, clinicSlug string, animalRepo *repository.AnimalRepository, articleRepo *repository.ArticleRepository) (*Bot, error) {
+func New(token, clinicSlug string, animalRepo *repository.AnimalRepository, articleRepo *repository.ArticleRepository, doctorRepo *repository.DoctorRepository) (*Bot, error) {
 	pref := tele.Settings{
 		Token:  token,
 		Poller: &tele.LongPoller{Timeout: 10 * time.Second},
@@ -48,6 +49,7 @@ func New(token, clinicSlug string, animalRepo *repository.AnimalRepository, arti
 		clinicSlug:  clinicSlug,
 		animalRepo:  animalRepo,
 		articleRepo: articleRepo,
+		doctorRepo:  doctorRepo,
 	}
 
 	bot.registerHandlers()
@@ -67,6 +69,7 @@ func mainMenuKeyboard() *tele.ReplyMarkup {
 	menu := &tele.ReplyMarkup{ResizeKeyboard: true}
 	menu.Reply(
 		menu.Row(menu.Text("🐾 Выбрать животное")),
+		menu.Row(menu.Text("👨‍⚕️ Врачи"), menu.Text("📅 Расписание")),
 		menu.Row(menu.Text("ℹ️ Помощь")),
 	)
 	return menu
@@ -80,6 +83,8 @@ func (b *Bot) registerHandlers() {
 
 	// Обработчик Reply-кнопок (текстовые кнопки под полем ввода)
 	b.tele.Handle("🐾 Выбрать животное", b.handleMenu)
+	b.tele.Handle("👨‍⚕️ Врачи", b.handleDoctors)
+	b.tele.Handle("📅 Расписание", b.handleSchedule)
 	b.tele.Handle("ℹ️ Помощь", b.handleHelp)
 
 	// Обработчик Inline-кнопок (кнопки прямо в сообщении)
@@ -173,9 +178,21 @@ func (b *Bot) handleCallback(c tele.Context) error {
 			return c.Respond()
 		}
 		return b.showArticlePageBySlug(c, parts[0], pageIdx)
+	case "doctor":
+		return b.showDoctor(c, cbValue)
+	case "sp":
+		pageIdx, err := strconv.Atoi(cbValue)
+		if err != nil {
+			return c.Respond()
+		}
+		return b.showSchedulePage(c, pageIdx)
 	case "back":
-		// C. Кнопка "Назад" — возвращает к списку животных
-		return b.showAnimalsInline(c)
+		switch cbValue {
+		case "doctors":
+			return b.showDoctorsList(c)
+		default:
+			return b.showAnimalsInline(c)
+		}
 	}
 
 	return c.Respond()
