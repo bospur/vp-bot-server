@@ -46,10 +46,19 @@ func main() {
 		log.Fatalf("ошибка миграций: %v", err)
 	}
 
+	uploadsDir := os.Getenv("UPLOADS_DIR")
+	if uploadsDir == "" {
+		uploadsDir = "./uploads"
+	}
+	if err := os.MkdirAll(uploadsDir, 0755); err != nil {
+		log.Fatalf("не удалось создать папку uploads: %v", err)
+	}
+
 	// Репозитории
 	animalRepo := repository.NewAnimalRepository(database)
 	articleRepo := repository.NewArticleRepository(database)
 	userRepo := repository.NewUserRepository(database)
+	doctorRepo := repository.NewDoctorRepository(database)
 
 	// Создаём первого admin пользователя если таблица users пустая
 	if adminLogin != "" && adminPass != "" {
@@ -73,12 +82,18 @@ func main() {
 	animalHandler := handler.NewAnimalHandler(animalRepo)
 	articleHandler := handler.NewArticleHandler(articleRepo)
 	adminHandler := handler.NewAdminHandler(animalRepo, articleRepo, userRepo, jwtSecret)
+	doctorHandler := handler.NewDoctorHandler(doctorRepo, uploadsDir)
 
 	// ── Публичные роуты ──────────────────────────────────────────────────────
 	http.HandleFunc("/api/clinics/{clinicSlug}/animals", animalHandler.GetAnimals)
 	http.HandleFunc("/api/clinics/{clinicSlug}/animals/{slug}/categories", animalHandler.GetCategories)
 	http.HandleFunc("/api/clinics/{clinicSlug}/animals/{animalSlug}/categories/{categorySlug}/articles", articleHandler.GetArticles)
 	http.HandleFunc("/api/clinics/{clinicSlug}/articles/{slug}", articleHandler.GetArticle)
+	http.HandleFunc("GET /api/clinics/{clinicSlug}/doctors", doctorHandler.GetPublicDoctors)
+	http.HandleFunc("GET /api/clinics/{clinicSlug}/schedule", doctorHandler.GetPublicSchedule)
+
+	// Статические файлы (фото врачей)
+	http.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir(uploadsDir))))
 
 	// ── Авторизация ──────────────────────────────────────────────────────────
 	http.HandleFunc("POST /api/admin/login", adminHandler.Login)
@@ -113,6 +128,29 @@ func main() {
 	http.HandleFunc("DELETE /api/admin/articles/{id}", auth(adminHandler.DeleteArticle))
 	http.HandleFunc("POST /api/admin/articles/{id}/categories/{categoryId}", auth(adminHandler.AssignArticleToCategory))
 	http.HandleFunc("DELETE /api/admin/articles/{id}/categories/{categoryId}", auth(adminHandler.RemoveArticleFromCategory))
+
+	// Doctors
+	http.HandleFunc("GET /api/admin/doctors", auth(doctorHandler.GetDoctors))
+	http.HandleFunc("GET /api/admin/doctors/{id}", auth(doctorHandler.GetDoctor))
+	http.HandleFunc("POST /api/admin/doctors", auth(doctorHandler.CreateDoctor))
+	http.HandleFunc("PUT /api/admin/doctors/{id}", auth(doctorHandler.UpdateDoctor))
+	http.HandleFunc("PATCH /api/admin/doctors/{id}/status", auth(doctorHandler.UpdateDoctorStatus))
+	http.HandleFunc("POST /api/admin/doctors/{id}/photo", auth(doctorHandler.UploadDoctorPhoto))
+	http.HandleFunc("DELETE /api/admin/doctors/{id}", auth(doctorHandler.DeleteDoctor))
+
+	// Schedule
+	http.HandleFunc("GET /api/admin/doctors/{id}/schedule", auth(doctorHandler.GetDoctorSchedule))
+	http.HandleFunc("POST /api/admin/doctors/{id}/schedule", auth(doctorHandler.AddScheduleSlot))
+	http.HandleFunc("DELETE /api/admin/doctors/{id}/schedule/{slotId}", auth(doctorHandler.DeleteScheduleSlot))
+
+	// Schedule exceptions
+	http.HandleFunc("GET /api/admin/doctors/{id}/schedule/exceptions", auth(doctorHandler.GetExceptions))
+	http.HandleFunc("PUT /api/admin/doctors/{id}/schedule/exceptions", auth(doctorHandler.UpsertException))
+	http.HandleFunc("DELETE /api/admin/doctors/{id}/schedule/exceptions/{exceptionId}", auth(doctorHandler.DeleteException))
+
+	// Settings
+	http.HandleFunc("GET /api/admin/settings", auth(doctorHandler.GetSettings))
+	http.HandleFunc("PATCH /api/admin/settings", auth(doctorHandler.UpdateSettings))
 
 	// Telegram бот
 	tgBot, err := bot.New(botToken, clinicSlug, animalRepo, articleRepo)
