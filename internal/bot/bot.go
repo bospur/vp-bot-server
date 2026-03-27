@@ -46,6 +46,21 @@ func New(token, clinicSlug, publicURL, appURL string, animalRepo *repository.Ani
 		log.Printf("не удалось установить команды бота: %v", err)
 	}
 
+	// B. Устанавливаем Menu Button — кнопка появляется слева от поля ввода
+	// и как быстрый доступ в списке чатов (кнопка "Открыть")
+	_, err = b.Raw("setChatMenuButton", map[string]interface{}{
+		"menu_button": map[string]interface{}{
+			"type": "web_app",
+			"text": "Открыть",
+			"web_app": map[string]string{
+				"url": appURL,
+			},
+		},
+	})
+	if err != nil {
+		log.Printf("не удалось установить menu button: %v", err)
+	}
+
 	bot := &Bot{
 		tele:        b,
 		clinicSlug:  clinicSlug,
