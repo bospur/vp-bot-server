@@ -152,8 +152,13 @@ func main() {
 	http.HandleFunc("GET /api/admin/settings", auth(doctorHandler.GetSettings))
 	http.HandleFunc("PATCH /api/admin/settings", auth(doctorHandler.UpdateSettings))
 
+	publicURL := os.Getenv("PUBLIC_URL")
+	if publicURL == "" {
+		publicURL = "https://api.snzbeachvolleyball25.ru"
+	}
+
 	// Telegram бот
-	tgBot, err := bot.New(botToken, clinicSlug, animalRepo, articleRepo, doctorRepo)
+	tgBot, err := bot.New(botToken, clinicSlug, publicURL, animalRepo, articleRepo, doctorRepo)
 	if err != nil {
 		log.Fatalf("ошибка инициализации бота: %v", err)
 	}
