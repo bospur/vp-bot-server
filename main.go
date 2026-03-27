@@ -169,7 +169,7 @@ func main() {
 	http.HandleFunc("GET /api/admin/grooming/appointments", auth(groomingHandler.GetAppointments))
 	http.HandleFunc("POST /api/admin/grooming/appointments", auth(groomingHandler.CreateAppointment))
 	http.HandleFunc("DELETE /api/admin/grooming/appointments/{id}", auth(groomingHandler.DeleteAppointment))
-  
+
 	publicURL := os.Getenv("PUBLIC_URL")
 	if publicURL == "" {
 		publicURL = "https://api.snzbeachvolleyball25.ru"
