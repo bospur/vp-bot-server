@@ -7,6 +7,8 @@ services:
     env_file: .env                  # переменные окружения из файла .env
     ports:
       - "127.0.0.1:8080:8080"      # доступен только локально (системный nginx проксирует)
+    volumes:
+      - uploads_data:/app/uploads   # фото врачей сохраняются между деплоями
     depends_on:
       - db
     networks:
@@ -29,3 +31,4 @@ networks:
 # ── Постоянное хранилище для БД ──────────────────────────────────────────────
 volumes:
   postgres_data:
+  uploads_data:
