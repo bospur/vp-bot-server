@@ -70,10 +70,11 @@ func (b *Bot) showDoctor(c tele.Context, idStr string) error {
 			File:    tele.FromURL(b.publicURL + doctor.PhotoURL),
 			Caption: text,
 		}
-		if err := c.Delete(); err != nil {
-			log.Printf("не удалось удалить сообщение: %v", err)
+		if err := c.Send(photo, menu, tele.ModeHTML); err == nil {
+			_ = c.Delete()
+			return nil
 		}
-		return c.Send(photo, menu, tele.ModeHTML)
+		log.Printf("не удалось отправить фото врача %s: пробуем текст", idStr)
 	}
 
 	return c.Edit(text, menu, tele.ModeHTML)
