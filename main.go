@@ -59,6 +59,7 @@ func main() {
 	articleRepo := repository.NewArticleRepository(database)
 	userRepo := repository.NewUserRepository(database)
 	doctorRepo := repository.NewDoctorRepository(database)
+	groomingRepo := repository.NewGroomingRepository(database)
 
 	// Создаём первого admin пользователя если таблица users пустая
 	if adminLogin != "" && adminPass != "" {
@@ -83,6 +84,7 @@ func main() {
 	articleHandler := handler.NewArticleHandler(articleRepo)
 	adminHandler := handler.NewAdminHandler(animalRepo, articleRepo, userRepo, jwtSecret)
 	doctorHandler := handler.NewDoctorHandler(doctorRepo, uploadsDir)
+	groomingHandler := handler.NewGroomingHandler(groomingRepo)
 
 	// ── Публичные роуты ──────────────────────────────────────────────────────
 	http.HandleFunc("/api/clinics/{clinicSlug}/animals", animalHandler.GetAnimals)
@@ -152,6 +154,22 @@ func main() {
 	http.HandleFunc("GET /api/admin/settings", auth(doctorHandler.GetSettings))
 	http.HandleFunc("PATCH /api/admin/settings", auth(doctorHandler.UpdateSettings))
 
+	// Grooming breeds
+	http.HandleFunc("GET /api/admin/grooming/breeds", auth(groomingHandler.GetBreeds))
+	http.HandleFunc("POST /api/admin/grooming/breeds", auth(groomingHandler.CreateBreed))
+	http.HandleFunc("PUT /api/admin/grooming/breeds/{id}", auth(groomingHandler.UpdateBreed))
+	http.HandleFunc("DELETE /api/admin/grooming/breeds/{id}", auth(groomingHandler.DeleteBreed))
+
+	// Grooming weekly template
+	http.HandleFunc("GET /api/admin/grooming/template", auth(groomingHandler.GetTemplate))
+	http.HandleFunc("PUT /api/admin/grooming/template", auth(groomingHandler.UpsertTemplateSlot))
+	http.HandleFunc("DELETE /api/admin/grooming/template/{dayOfWeek}", auth(groomingHandler.DeleteTemplateSlot))
+
+	// Grooming appointments
+	http.HandleFunc("GET /api/admin/grooming/appointments", auth(groomingHandler.GetAppointments))
+	http.HandleFunc("POST /api/admin/grooming/appointments", auth(groomingHandler.CreateAppointment))
+	http.HandleFunc("DELETE /api/admin/grooming/appointments/{id}", auth(groomingHandler.DeleteAppointment))
+  
 	publicURL := os.Getenv("PUBLIC_URL")
 	if publicURL == "" {
 		publicURL = "https://api.snzbeachvolleyball25.ru"
