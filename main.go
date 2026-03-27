@@ -169,9 +169,18 @@ func main() {
 	http.HandleFunc("GET /api/admin/grooming/appointments", auth(groomingHandler.GetAppointments))
 	http.HandleFunc("POST /api/admin/grooming/appointments", auth(groomingHandler.CreateAppointment))
 	http.HandleFunc("DELETE /api/admin/grooming/appointments/{id}", auth(groomingHandler.DeleteAppointment))
+  
+	publicURL := os.Getenv("PUBLIC_URL")
+	if publicURL == "" {
+		publicURL = "https://api.snzbeachvolleyball25.ru"
+	}
+	appURL := os.Getenv("APP_URL")
+	if appURL == "" {
+		appURL = "https://app.snzbeachvolleyball25.ru"
+	}
 
 	// Telegram бот
-	tgBot, err := bot.New(botToken, clinicSlug, animalRepo, articleRepo, doctorRepo)
+	tgBot, err := bot.New(botToken, clinicSlug, publicURL, appURL, animalRepo, articleRepo, doctorRepo)
 	if err != nil {
 		log.Fatalf("ошибка инициализации бота: %v", err)
 	}

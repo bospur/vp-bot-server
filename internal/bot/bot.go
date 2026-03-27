@@ -17,13 +17,15 @@ import (
 type Bot struct {
 	tele        *tele.Bot
 	clinicSlug  string
+	publicURL   string
+	appURL      string
 	animalRepo  *repository.AnimalRepository
 	articleRepo *repository.ArticleRepository
 	doctorRepo  *repository.DoctorRepository
 }
 
 // New создаёт и настраивает Telegram бота
-func New(token, clinicSlug string, animalRepo *repository.AnimalRepository, articleRepo *repository.ArticleRepository, doctorRepo *repository.DoctorRepository) (*Bot, error) {
+func New(token, clinicSlug, publicURL, appURL string, animalRepo *repository.AnimalRepository, articleRepo *repository.ArticleRepository, doctorRepo *repository.DoctorRepository) (*Bot, error) {
 	pref := tele.Settings{
 		Token:  token,
 		Poller: &tele.LongPoller{Timeout: 10 * time.Second},
@@ -44,9 +46,26 @@ func New(token, clinicSlug string, animalRepo *repository.AnimalRepository, arti
 		log.Printf("не удалось установить команды бота: %v", err)
 	}
 
+	// B. Устанавливаем Menu Button — кнопка появляется слева от поля ввода
+	// и как быстрый доступ в списке чатов (кнопка "Открыть")
+	_, err = b.Raw("setChatMenuButton", map[string]interface{}{
+		"menu_button": map[string]interface{}{
+			"type": "web_app",
+			"text": "Открыть",
+			"web_app": map[string]string{
+				"url": appURL,
+			},
+		},
+	})
+	if err != nil {
+		log.Printf("не удалось установить menu button: %v", err)
+	}
+
 	bot := &Bot{
 		tele:        b,
 		clinicSlug:  clinicSlug,
+		publicURL:   publicURL,
+		appURL:      appURL,
 		animalRepo:  animalRepo,
 		articleRepo: articleRepo,
 		doctorRepo:  doctorRepo,
@@ -97,7 +116,15 @@ func (b *Bot) handleStart(c tele.Context) error {
 		"Здесь вы можете получить информацию о первой помощи вашему питомцу в нерабочие часы клиники.\n\n" +
 		"Используйте кнопки ниже для навигации."
 
-	return c.Send(text, mainMenuKeyboard(), tele.ModeMarkdown)
+	inline := &tele.ReplyMarkup{}
+	inline.Inline(
+		inline.Row(tele.Btn{
+			Text:   "🏥 Открыть приложение",
+			WebApp: &tele.WebApp{URL: b.appURL},
+		}),
+	)
+
+	return c.Send(text, mainMenuKeyboard(), inline, tele.ModeMarkdown)
 }
 
 // handleMenu показывает список животных

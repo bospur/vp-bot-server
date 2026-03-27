@@ -64,6 +64,19 @@ func (b *Bot) showDoctor(c tele.Context, idStr string) error {
 	menu.Inline(
 		menu.Row(tele.Btn{Text: "⬅️ К списку врачей", Data: "back:doctors"}),
 	)
+
+	if doctor.PhotoURL != "" {
+		photo := &tele.Photo{
+			File:    tele.FromURL(b.publicURL + doctor.PhotoURL),
+			Caption: text,
+		}
+		if err := c.Send(photo, menu, tele.ModeHTML); err == nil {
+			_ = c.Delete()
+			return nil
+		}
+		log.Printf("не удалось отправить фото врача %s: пробуем текст", idStr)
+	}
+
 	return c.Edit(text, menu, tele.ModeHTML)
 }
 
