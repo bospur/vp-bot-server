@@ -17,13 +17,14 @@ import (
 type Bot struct {
 	tele        *tele.Bot
 	clinicSlug  string
+	publicURL   string
 	animalRepo  *repository.AnimalRepository
 	articleRepo *repository.ArticleRepository
 	doctorRepo  *repository.DoctorRepository
 }
 
 // New создаёт и настраивает Telegram бота
-func New(token, clinicSlug string, animalRepo *repository.AnimalRepository, articleRepo *repository.ArticleRepository, doctorRepo *repository.DoctorRepository) (*Bot, error) {
+func New(token, clinicSlug, publicURL string, animalRepo *repository.AnimalRepository, articleRepo *repository.ArticleRepository, doctorRepo *repository.DoctorRepository) (*Bot, error) {
 	pref := tele.Settings{
 		Token:  token,
 		Poller: &tele.LongPoller{Timeout: 10 * time.Second},
@@ -47,6 +48,7 @@ func New(token, clinicSlug string, animalRepo *repository.AnimalRepository, arti
 	bot := &Bot{
 		tele:        b,
 		clinicSlug:  clinicSlug,
+		publicURL:   publicURL,
 		animalRepo:  animalRepo,
 		articleRepo: articleRepo,
 		doctorRepo:  doctorRepo,
