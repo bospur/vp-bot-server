@@ -1,0 +1,11 @@
+packages:
+  - path: "go-server/internal/repository"
+    output_path: "generated/types.ts"
+    type_mappings:
+      time.Time: "string"
+    exclude_types:
+      - AnimalRepository
+      - ArticleRepository
+      - DoctorRepository
+      - GroomingRepository
+      - UserRepository
